@@ -10,6 +10,7 @@ import { colors } from "./src/theme/colors";
 
 export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [available, setAvailable] = useState(true);
 
   return (
     <SafeAreaProvider>
@@ -31,7 +32,13 @@ export default function App() {
               onPress={() => setDrawerOpen(false)}
             />
             <View style={styles.drawer}>
-              <DrawerMenu onClose={() => setDrawerOpen(false)} />
+              <DrawerMenu
+                available={available}
+                onToggleAvailability={setAvailable}
+                onSelect={(key) => {
+                  if (key === "logout") setDrawerOpen(false);
+                }}
+              />
             </View>
           </View>
         </Modal>
