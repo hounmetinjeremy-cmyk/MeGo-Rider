@@ -1,29 +1,31 @@
 import React from "react";
 import { View, Text, Pressable } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { colors } from "../theme/colors";
+import Icon from "./Icon";
+import colors from "../theme/colors";
 
-/**
- * Header / App Bar : icone burger verte (#76D865) a gauche, titre centre.
- */
-export default function AppHeader({ title = "Commandes", onMenuPress }) {
+export default function AppHeader({ title = "Commandes", subtitle, onMenuPress, onRefresh }) {
   return (
-    <View className="h-14 flex-row items-center bg-white px-3">
+    <View className="flex-row items-center bg-white px-4 py-3.5">
       <Pressable
         onPress={onMenuPress}
-        hitSlop={12}
-        accessibilityRole="button"
-        accessibilityLabel="Ouvrir le menu"
-        className="h-10 w-10 items-center justify-center rounded-full active:bg-chip"
+        hitSlop={10}
+        className="mr-3 h-9 w-9 items-center justify-center rounded-full bg-primary-soft active:opacity-70"
       >
-        <Ionicons name="menu" size={26} color={colors.primary} />
+        <Icon name="menu" size={22} color={colors.primary} />
       </Pressable>
-
-      <Text className="flex-1 text-center text-[17px] font-semibold text-ink">
-        {title}
-      </Text>
-
-      <View className="h-10 w-10" />
+      <View className="flex-1">
+        <Text className="text-[17px] font-bold text-ink">{title}</Text>
+        {subtitle ? <Text className="text-[11px] text-muted">{subtitle}</Text> : null}
+      </View>
+      {onRefresh ? (
+        <Pressable
+          onPress={onRefresh}
+          hitSlop={10}
+          className="h-9 w-9 items-center justify-center rounded-full bg-chip active:opacity-70"
+        >
+          <Icon name="refresh" size={18} color={colors.muted} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }

@@ -1,39 +1,24 @@
 import React from "react";
 import { View, Text, Pressable } from "react-native";
+import { TABS } from "../lib/orders";
 
-export const ORDER_TABS = ["Nouvel Ordre", "En traitement", "Livré"];
-
-/**
- * Barre d'onglets supérieure : onglet actif en texte sombre + soulignement vert.
- */
-export default function TopTabBar({ tabs = ORDER_TABS, activeTab, onChange }) {
+export default function TopTabBar({ activeTab, onChange, counts = {} }) {
   return (
-    <View className="flex-row border-b border-line bg-white">
-      {tabs.map((tab) => {
+    <View className="flex-row items-center border-b border-line bg-white px-2">
+      {TABS.map((tab) => {
         const isActive = tab === activeTab;
+        const count = counts[tab] || 0;
         return (
           <Pressable
             key={tab}
             onPress={() => onChange && onChange(tab)}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: isActive }}
-            className="flex-1 items-center pt-3"
+            className="flex-1 items-center py-3 active:opacity-70"
           >
-            <Text
-              className={
-                isActive
-                  ? "text-sm font-semibold text-ink"
-                  : "text-sm font-medium text-muted"
-              }
-            >
+            <Text className={`text-[13px] ${isActive ? "font-semibold text-primary" : "text-muted"}`}>
               {tab}
+              {count ? ` (${count})` : ""}
             </Text>
-            <View
-              className={
-                "mt-2 h-[3px] w-full rounded-full " +
-                (isActive ? "bg-primary" : "bg-transparent")
-              }
-            />
+            <View className={`mt-2 h-0.5 w-8 rounded-full ${isActive ? "bg-primary" : "bg-transparent"}`} />
           </Pressable>
         );
       })}

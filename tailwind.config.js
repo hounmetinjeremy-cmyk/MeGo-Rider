@@ -12,6 +12,7 @@ module.exports = {
         muted: "#7E8B9B",
         line: "#E5E7EB",
         chip: "#F4F5F7",
+        surface: "#F4F5F7",
       },
     },
   },

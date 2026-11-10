@@ -1,77 +1,99 @@
-import React, { useMemo, useState } from "react";
-import { View, Text, FlatList, RefreshControl } from "react-native";
+import React, { useState } from "react";
+import { View, Text, FlatList, RefreshControl, ActivityIndicator } from "react-native";
 import AppHeader from "../components/AppHeader";
-import TopTabBar, { ORDER_TABS } from "../components/TopTabBar";
-import EmptyState from "../components/EmptyState";
+import TopTabBar from "../components/TopTabBar";
 import OrderCard from "../components/OrderCard";
-import BottomNavBar from "../components/BottomNavBar";
-import useOrders from "../hooks/useOrders";
-import { tabForStatus } from "../lib/orders";
-import { colors } from "../theme/colors";
+import EmptyState from "../components/EmptyState";
+import { TABS, acceptOrder, markDelivered } from "../lib/orders";
 
 const EMPTY_MESSAGES = {
   "Nouvel Ordre": "Aucune nouvelle commande pour le moment !",
   "En traitement": "Aucune commande en traitement pour le moment !",
-  Livre: "Aucune commande livree pour le moment !",
+  "Livré": "Aucune commande livrée pour le moment !",
 };
 
-/**
- * Ecran 1 : Commandes (onglets + liste Supabase + navigation basse).
- */
 export default function OrdersScreen({
+  rider,
+  byTab,
+  loading,
+  error,
+  refreshing,
+  onRefresh,
+  onReload,
   onMenuPress,
-  activeTab,
-  onChangeTab,
-  activeNav,
-  onChangeNav,
 }) {
-  const { orders, loading, error, reload } = useOrders();
-  const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState(TABS[0]);
+  const [busyId, setBusyId] = useState(null);
+  const [actionError, setActionError] = useState(null);
 
-  const visibleOrders = useMemo(
-    () => orders.filter((order) => tabForStatus(order.status) === activeTab),
-    [orders, activeTab]
-  );
+  const groups = byTab || { "Nouvel Ordre": [], "En traitement": [], "Livré": [] };
+  const list = groups[activeTab] || [];
+  const counts = {
+    "Nouvel Ordre": groups["Nouvel Ordre"].length,
+    "En traitement": groups["En traitement"].length,
+    "Livré": groups["Livré"].length,
+  };
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await reload();
-    setRefreshing(false);
+  const run = async (id, fn) => {
+    try {
+      setBusyId(id);
+      setActionError(null);
+      await fn();
+      if (onReload) await onReload();
+    } catch (e) {
+      setActionError(e && e.message ? e.message : "Action impossible");
+    } finally {
+      setBusyId(null);
+    }
   };
 
   return (
-    <View className="flex-1 bg-white">
-      <AppHeader title="Commandes" onMenuPress={onMenuPress} />
-      <TopTabBar tabs={ORDER_TABS} activeTab={activeTab} onChange={onChangeTab} />
-
-      <View className="flex-1">
-        {loading && orders.length === 0 ? (
-          <View className="flex-1 items-center justify-center">
-            <Text className="text-sm text-muted">Chargement...</Text>
-          </View>
-        ) : error ? (
-          <EmptyState message={"Impossible de charger les commandes.\n" + error} />
-        ) : (
-          <FlatList
-            data={visibleOrders}
-            keyExtractor={(item) => String(item.id)}
-            renderItem={({ item }) => <OrderCard order={item} />}
-            contentContainerStyle={{ padding: 16, paddingBottom: 24, flexGrow: 1 }}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor={colors.primary}
-              />
-            }
-            ListEmptyComponent={
-              <EmptyState message={EMPTY_MESSAGES[activeTab]} />
-            }
-          />
-        )}
-      </View>
-
-      <BottomNavBar activeItem={activeNav} onChange={onChangeNav} />
+    <View className="flex-1 bg-surface">
+      <AppHeader
+        title="Commandes"
+        subtitle={rider ? `${rider.name} · ${rider.code}` : "Chargement du profil…"}
+        onMenuPress={onMenuPress}
+        onRefresh={onRefresh}
+      />
+      <TopTabBar activeTab={activeTab} onChange={setActiveTab} counts={counts} />
+      {error ? <Text className="px-4 pt-3 text-[12px] text-red-500">{error}</Text> : null}
+      {actionError ? <Text className="px-4 pt-3 text-[12px] text-red-500">{actionError}</Text> : null}
+      {loading ? (
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator color="#76D865" />
+        </View>
+      ) : (
+        <FlatList
+          data={list}
+          keyExtractor={(item) => String(item.id)}
+          contentContainerStyle={{ padding: 16, paddingBottom: 24, flexGrow: 1 }}
+          refreshControl={
+            <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor="#76D865" />
+          }
+          ListEmptyComponent={
+            <EmptyState
+              icon={activeTab === "Livré" ? "check" : "package"}
+              message={EMPTY_MESSAGES[activeTab]}
+            />
+          }
+          renderItem={({ item }) => (
+            <OrderCard
+              order={item}
+              busy={busyId === item.id}
+              onAccept={
+                item.status === "NEW" && rider
+                  ? () => run(item.id, () => acceptOrder(item.id, rider.id))
+                  : undefined
+              }
+              onDeliver={
+                item.status === "IN_PROGRESS" && rider && item.riderId === rider.id
+                  ? () => run(item.id, () => markDelivered(item.id))
+                  : undefined
+              }
+            />
+          )}
+        />
+      )}
     </View>
   );
 }
