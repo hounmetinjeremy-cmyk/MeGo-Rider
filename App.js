@@ -3,6 +3,7 @@ import { View, Modal, Pressable, Animated, Easing, Dimensions } from "react-nati
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
+import AppHeader from "./src/components/AppHeader";
 import BottomNavBar from "./src/components/BottomNavBar";
 import DrawerMenu from "./src/screens/DrawerMenu";
 import OrdersScreen from "./src/screens/OrdersScreen";
@@ -20,17 +21,15 @@ import ProductScreen from "./src/screens/ProductScreen";
 import useRider from "./src/hooks/useRider";
 import useOrders from "./src/hooks/useOrders";
 
-const DRAWER_WIDTH = Math.min(340, Dimensions.get("window").width * 0.82);
-
-/** Onglets principaux : ce sont les seuls à afficher la barre du bas. */
+const DRAWER_WIDTH = Math.min(Dimensions.get("window").width * 0.82, 340);
 const MAIN_TABS = ["home", "wallet", "earnings", "profile"];
 
 /**
  * Application livreur MeGo Rider.
  *
  * État global :
- * - activeNav : onglet / écran courant (home, wallet, earnings, profile,
- *   language, vehicle, schedule, bank, help, about, privacy, product)
+ * - activeNav : onglet principal (home, wallet, earnings, profile) ou écran du drawer
+ *   (language, vehicle, schedule, banking, help, about, privacy, product)
  * - drawerOpen : ouverture du menu latéral
  */
 export default function App() {
@@ -40,14 +39,10 @@ export default function App() {
 
   const {
     rider,
-    loading: riderLoading,
-    error: riderError,
     reload: reloadRider,
     setAvailability,
   } = useRider();
-
   const {
-    orders,
     byTab,
     loading,
     error,
@@ -55,6 +50,8 @@ export default function App() {
     refresh,
     reload,
   } = useOrders(rider ? rider.id : null);
+
+  const riderId = rider ? rider.id : null;
 
   const slide = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const fade = useRef(new Animated.Value(0)).current;
@@ -82,9 +79,9 @@ export default function App() {
   }, [drawerOpen, slide, fade]);
 
   const handleToggleAvailability = useCallback(
-    async (value) => {
+    async (next) => {
       try {
-        await setAvailability(value);
+        await setAvailability(next);
       } catch (e) {
         // l'état est déjà revenu en arrière dans le hook
       }
@@ -100,6 +97,13 @@ export default function App() {
     (key) => {
       if (key === "logout") {
         setActiveNav("home");
+        closeDrawer();
+        return;
+      }
+      if (key === "home") {
+        setActiveNav("home");
+      } else if (key === "profile") {
+        setActiveNav("profile");
       } else {
         setActiveNav(key);
       }
@@ -120,16 +124,12 @@ export default function App() {
     if (MAIN_TABS.includes(activeNav)) lastTab.current = activeNav;
   }, [activeNav]);
 
-  const riderId = rider ? rider.id : null;
-  const isMainTab = MAIN_TABS.includes(activeNav);
-
   let screen = null;
-
   if (activeNav === "wallet") {
     screen = (
       <WalletScreen
         rider={rider}
-        orders={orders}
+        orders={byTab.all || []}
         refreshing={refreshing}
         onRefresh={handleRefresh}
         onMenuPress={openDrawer}
@@ -139,7 +139,7 @@ export default function App() {
     screen = (
       <EarningsScreen
         rider={rider}
-        orders={orders}
+        orders={byTab.all || []}
         refreshing={refreshing}
         onRefresh={handleRefresh}
         onMenuPress={openDrawer}
@@ -161,7 +161,7 @@ export default function App() {
     screen = <VehicleScreen riderId={riderId} onBack={goBack} />;
   } else if (activeNav === "schedule") {
     screen = <ScheduleScreen riderId={riderId} onBack={goBack} />;
-  } else if (activeNav === "bank") {
+  } else if (activeNav === "banking") {
     screen = <BankScreen riderId={riderId} onBack={goBack} />;
   } else if (activeNav === "help") {
     screen = <HelpScreen riderId={riderId} onBack={goBack} />;
@@ -176,12 +176,11 @@ export default function App() {
       <OrdersScreen
         rider={rider}
         byTab={byTab}
-        loading={loading || riderLoading}
-        error={error || riderError}
+        loading={loading}
+        error={error}
         refreshing={refreshing}
         onRefresh={handleRefresh}
         onMenuPress={openDrawer}
-        onReload={reload}
       />
     );
   }
@@ -189,12 +188,11 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
-      <SafeAreaView className="flex-1 bg-surface" edges={["top", "bottom"]}>
-        <View className="flex-1">{screen}</View>
-
-        {isMainTab ? (
+      <SafeAreaView className="flex-1 bg-gray-50" edges={["top", "bottom"]}>
+        <View className="flex-1">
+          {screen}
           <BottomNavBar activeKey={activeNav} onChange={setActiveNav} />
-        ) : null}
+        </View>
 
         <Modal
           visible={drawerOpen}
@@ -202,9 +200,13 @@ export default function App() {
           animationType="none"
           onRequestClose={closeDrawer}
         >
-          <View className="flex-1 flex-row">
+          <View style={{ flex: 1, flexDirection: "row" }}>
             <Animated.View
-              style={{ width: DRAWER_WIDTH, transform: [{ translateX: slide }] }}
+              style={{
+                width: DRAWER_WIDTH,
+                opacity: fade,
+                transform: [{ translateX: slide }],
+              }}
             >
               <DrawerMenu
                 rider={rider}
@@ -214,13 +216,7 @@ export default function App() {
                 onToggleAvailability={handleToggleAvailability}
               />
             </Animated.View>
-
-            <Animated.View style={{ flex: 1, opacity: fade }}>
-              <Pressable
-                className="flex-1 bg-black/40"
-                onPress={closeDrawer}
-              />
-            </Animated.View>
+            <Pressable style={{ flex: 1 }} onPress={closeDrawer} />
           </View>
         </Modal>
       </SafeAreaView>
