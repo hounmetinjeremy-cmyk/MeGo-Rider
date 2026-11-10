@@ -1,9 +1,16 @@
 import React, { useState } from "react";
-import { View, Text, FlatList, RefreshControl, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  FlatList,
+  RefreshControl,
+  ActivityIndicator,
+} from "react-native";
 import AppHeader from "../components/AppHeader";
 import TopTabBar from "../components/TopTabBar";
 import OrderCard from "../components/OrderCard";
 import EmptyState from "../components/EmptyState";
+import colors from "../theme/colors";
 import { TABS, acceptOrder, markDelivered } from "../lib/orders";
 
 const EMPTY_MESSAGES = {
@@ -12,34 +19,27 @@ const EMPTY_MESSAGES = {
   "Livré": "Aucune commande livrée pour le moment !",
 };
 
+/** Écran 1 : gestion des commandes (onglets + liste). */
 export default function OrdersScreen({
   rider,
-  byTab,
+  byTab = {},
   loading,
   error,
   refreshing,
   onRefresh,
-  onReload,
   onMenuPress,
 }) {
   const [activeTab, setActiveTab] = useState(TABS[0]);
   const [busyId, setBusyId] = useState(null);
   const [actionError, setActionError] = useState(null);
 
-  const groups = byTab || { "Nouvel Ordre": [], "En traitement": [], "Livré": [] };
-  const list = groups[activeTab] || [];
-  const counts = {
-    "Nouvel Ordre": groups["Nouvel Ordre"].length,
-    "En traitement": groups["En traitement"].length,
-    "Livré": groups["Livré"].length,
-  };
+  const list = byTab[activeTab] || [];
 
   const run = async (id, fn) => {
+    setBusyId(id);
+    setActionError(null);
     try {
-      setBusyId(id);
-      setActionError(null);
       await fn();
-      if (onReload) await onReload();
     } catch (e) {
       setActionError(e && e.message ? e.message : "Action impossible");
     } finally {
@@ -48,27 +48,37 @@ export default function OrdersScreen({
   };
 
   return (
-    <View className="flex-1 bg-surface">
+    <View className="flex-1 bg-gray-50">
       <AppHeader
         title="Commandes"
-        subtitle={rider ? `${rider.name} · ${rider.code}` : "Chargement du profil…"}
+        subtitle={rider ? rider.name : undefined}
         onMenuPress={onMenuPress}
-        onRefresh={onRefresh}
       />
-      <TopTabBar activeTab={activeTab} onChange={setActiveTab} counts={counts} />
-      {error ? <Text className="px-4 pt-3 text-[12px] text-red-500">{error}</Text> : null}
-      {actionError ? <Text className="px-4 pt-3 text-[12px] text-red-500">{actionError}</Text> : null}
+      <TopTabBar activeTab={activeTab} onChange={setActiveTab} />
+
+      {error ? (
+        <Text className="px-4 pt-3 text-[12px] text-red-500">{error}</Text>
+      ) : null}
+      {actionError ? (
+        <Text className="px-4 pt-3 text-[12px] text-red-500">{actionError}</Text>
+      ) : null}
+
       {loading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#76D865" />
+          <ActivityIndicator color={colors.primary} />
         </View>
       ) : (
         <FlatList
+          className="flex-1"
           data={list}
           keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={{ padding: 16, paddingBottom: 24, flexGrow: 1 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
           refreshControl={
-            <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor="#76D865" />
+            <RefreshControl
+              refreshing={!!refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+            />
           }
           ListEmptyComponent={
             <EmptyState

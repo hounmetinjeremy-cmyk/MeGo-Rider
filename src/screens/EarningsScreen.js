@@ -3,56 +3,85 @@ import { View, Text, ScrollView, RefreshControl } from "react-native";
 import AppHeader from "../components/AppHeader";
 import StatCard from "../components/StatCard";
 import EmptyState from "../components/EmptyState";
+import colors from "../theme/colors";
 import { formatMoney, formatDate } from "../lib/orders";
 
-export default function EarningsScreen({ rider, orders = [], refreshing, onRefresh, onMenuPress }) {
+/** Onglet Revenus : total gagné + historique des livraisons. */
+export default function EarningsScreen({
+  rider,
+  orders = [],
+  refreshing,
+  onRefresh,
+  onMenuPress,
+}) {
   const delivered = orders.filter((o) => o.status === "DELIVERED");
-  const total = rider ? rider.earnings : 0;
-  const average = delivered.length ? total / delivered.length : 0;
+  const inProgress = orders.filter((o) => o.status === "IN_PROGRESS");
+
   return (
-    <View className="flex-1 bg-surface">
+    <View className="flex-1 bg-gray-50">
       <AppHeader
         title="Revenus"
-        subtitle="Gains et statistiques"
+        subtitle={rider ? rider.name : undefined}
         onMenuPress={onMenuPress}
-        onRefresh={onRefresh}
       />
       <ScrollView
-        className="flex-1 px-4"
-        contentContainerStyle={{ paddingBottom: 24 }}
-        refreshControl={<RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor="#76D865" />}
-      >
-        <View className="mt-4 flex-row">
-          <StatCard icon="dollar" label="Total gagné" value={formatMoney(total)} />
-          <View className="w-3" />
-          <StatCard icon="check" label="Livraisons" value={String(delivered.length)} tint="#1A2433" />
-        </View>
-        <View className="mt-3 flex-row">
-          <StatCard icon="trend" label="Gain moyen / course" value={formatMoney(average)} />
-          <View className="w-3" />
-          <StatCard
-            icon="wallet"
-            label="Solde portefeuille"
-            value={formatMoney(rider ? rider.wallet : 0)}
-            tint="#1A2433"
+        className="flex-1"
+        contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={!!refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
           />
+        }
+      >
+        <View className="rounded-xl bg-white p-5 shadow-sm">
+          <Text className="text-[12px] text-muted">Total gagné</Text>
+          <Text className="mt-1 text-[28px] font-bold text-ink">
+            {formatMoney(rider ? rider.earnings : 0)}
+          </Text>
         </View>
-        <Text className="mb-2 mt-6 text-[13px] font-semibold text-ink">Historique des livraisons</Text>
+
+        <View className="mt-3 flex-row">
+          <View className="mr-2 flex-1">
+            <StatCard
+              icon="check"
+              label="Livraisons"
+              value={String(delivered.length)}
+              tint={colors.primary}
+            />
+          </View>
+          <View className="ml-2 flex-1">
+            <StatCard
+              icon="clock"
+              label="En cours"
+              value={String(inProgress.length)}
+              tint={colors.navy}
+            />
+          </View>
+        </View>
+
+        <Text className="mb-3 mt-6 text-[15px] font-bold text-ink">
+          Historique
+        </Text>
+
         {delivered.length === 0 ? (
-          <EmptyState icon="dollar" message="Aucun revenu enregistré pour le moment !" />
+          <EmptyState icon="dollar" message="Aucun revenu pour le moment !" />
         ) : (
           delivered.map((o) => (
             <View
               key={o.id}
-              className="mb-2 flex-row items-center justify-between rounded-xl border border-line bg-white p-3.5"
+              className="mb-3 flex-row items-center justify-between rounded-xl bg-white p-4 shadow-sm"
             >
               <View className="flex-1">
-                <Text className="text-[13px] font-semibold text-ink">
-                  {o.code} · {o.vendor}
+                <Text className="text-[14px] font-semibold text-ink">
+                  {o.code}
                 </Text>
-                <Text className="text-[11px] text-muted">{formatDate(o.createdAt)}</Text>
+                <Text className="text-[12px] text-muted">
+                  {formatDate(o.createdAt || o.created_at)}
+                </Text>
               </View>
-              <Text className="text-[13px] font-bold text-primary">
+              <Text className="text-[14px] font-bold text-primary">
                 +{formatMoney(o.amount, o.currency)}
               </Text>
             </View>
