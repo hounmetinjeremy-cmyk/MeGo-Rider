@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "MeGo Rider",
+    "slug": "mego-rider",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": { "backgroundColor": "#FFFFFF" },
+    "assetBundlePatterns": ["**/*"],
+    "ios": { "supportsTablet": true },
+    "android": { "adaptiveIcon": { "backgroundColor": "#76D865" } },
+    "web": { "bundler": "metro" }
+  }
+}
