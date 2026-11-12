@@ -11,9 +11,10 @@ const STATUS_STYLE = {
 };
 
 /** Carte de commande : bloc blanc arrondi avec ombre légère. */
-export default function OrderCard({ order, onAccept, onDeliver, busy }) {
+export default function OrderCard({ order, onAccept, onDecline, onDeliver, busy }) {
   const style = STATUS_STYLE[order.status] || STATUS_STYLE.NEW;
   const created = order.createdAt || order.created_at;
+  const offered = order.dispatch === "OFFERED" && !!onAccept;
 
   return (
     <View className="mb-4 rounded-xl bg-white p-4 shadow-sm">
@@ -27,6 +28,12 @@ export default function OrderCard({ order, onAccept, onDeliver, busy }) {
       </View>
 
       <Text className="mt-1 text-[13px] text-muted">{order.vendor}</Text>
+
+      {offered ? (
+        <Text className="mt-2 text-[12px] font-semibold text-primary">
+          Course proposée pour toi : réponds vite, elle passe au livreur suivant sinon.
+        </Text>
+      ) : null}
 
       <View className="mt-3">
         <View className="flex-row items-start">
@@ -53,19 +60,30 @@ export default function OrderCard({ order, onAccept, onDeliver, busy }) {
       {onAccept || onDeliver ? (
         <View className="mt-3">
           {onAccept ? (
-            <Pressable
-              onPress={onAccept}
-              disabled={busy}
-              className="items-center rounded-lg bg-primary py-3"
-            >
-              {busy ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text className="text-[14px] font-semibold text-white">
-                  Accepter la livraison
-                </Text>
-              )}
-            </Pressable>
+            <View className="flex-row">
+              <Pressable
+                onPress={onAccept}
+                disabled={busy}
+                className="flex-1 items-center rounded-lg bg-primary py-3"
+              >
+                {busy ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text className="text-[14px] font-semibold text-white">
+                    Accepter la livraison
+                  </Text>
+                )}
+              </Pressable>
+              {onDecline ? (
+                <Pressable
+                  onPress={onDecline}
+                  disabled={busy}
+                  className="ml-2 items-center justify-center rounded-lg bg-chip px-4 py-3"
+                >
+                  <Text className="text-[14px] font-semibold text-ink">Refuser</Text>
+                </Pressable>
+              ) : null}
+            </View>
           ) : null}
 
           {onDeliver ? (
