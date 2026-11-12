@@ -65,3 +65,43 @@ export function computeStats(orders) {
     revenue,
   };
 }
+
+/**
+ * Formate un montant en devise (ex: 4500 -> "4 500 XAF").
+ * @param {number|string} amount - Montant brut.
+ * @param {string} currency - Code devise (defaut XAF).
+ * @returns {string} Montant formate.
+ */
+export function formatMoney(amount, currency = "XAF") {
+  const value = Number(amount || 0);
+  const safe = Number.isFinite(value) ? value : 0;
+  try {
+    return new Intl.NumberFormat("fr-FR", {
+      style: "currency",
+      currency: currency || "XAF",
+      maximumFractionDigits: 0,
+    }).format(safe);
+  } catch (e) {
+    return `${safe.toLocaleString("fr-FR")} ${currency || "XAF"}`;
+  }
+}
+
+/**
+ * Formate une date ISO en date courte francaise (ex: "12 nov. 2026").
+ * @param {string|Date} value - Date ISO ou objet Date.
+ * @returns {string} Date formatee, ou chaine vide si invalide.
+ */
+export function formatDate(value) {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  try {
+    return date.toLocaleDateString("fr-FR", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  } catch (e) {
+    return date.toISOString().slice(0, 10);
+  }
+}
