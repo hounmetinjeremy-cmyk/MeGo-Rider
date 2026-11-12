@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import useRiderLocation from "./useRiderLocation";
 
 const RIDER_COLUMNS =
   "id, full_name, name, rider_code, phone, is_available, vehicle_type, vehicle, wallet_balance, total_earnings, created_at";
@@ -22,6 +23,7 @@ export function normalizeRider(row) {
  * Profil du livreur connecté.
  * Sans écran de connexion, on prend le livreur EXPO_PUBLIC_RIDER_ID
  * s'il est défini, sinon le premier de la table riders.
+ * Tant que le livreur est « Disponible », sa position est envoyée toutes les 30 s.
  */
 export default function useRider() {
   const [rider, setRider] = useState(null);
@@ -49,6 +51,8 @@ export default function useRider() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useRiderLocation(rider);
 
   /** Bascule le switch Disponibilité -> riders.is_available */
   const setAvailability = useCallback(
