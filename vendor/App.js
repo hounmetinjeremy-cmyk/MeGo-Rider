@@ -17,6 +17,7 @@ const MAIN_TABS = ["home", "orders", "products", "earnings", "profile"];
 /**
  * Application vendeur MeGo Vendor : même structure que l'application livreur
  * (en-tête, contenu, barre d'onglets en bas, menu latéral). Seules les fonctions changent.
+ * Le vendeur ajoute ses produits et partage le lien de sa boutique ; le livreur est choisi par le système.
  */
 export default function App() {
   const [activeNav, setActiveNav] = useState("home");
@@ -24,7 +25,7 @@ export default function App() {
   const slide = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const fade = useRef(new Animated.Value(0)).current;
   const lastTab = useRef("home");
-  const { vendor, orders, loading, error, reload, setOrders, toggleOpen } = useVendor();
+  const { vendor, orders, loading, error, reload, toggleOpen } = useVendor();
 
   const openDrawer = useCallback(() => setDrawerOpen(true), []);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
@@ -49,7 +50,7 @@ export default function App() {
   const renderScreen = () => {
     switch (activeNav) {
       case "orders":
-        return <OrdersScreen vendor={vendor} orders={orders} setOrders={setOrders} onMenuPress={openDrawer} onBack={goBack} />;
+        return <OrdersScreen vendor={vendor} orders={orders} onRefresh={reload} onMenuPress={openDrawer} onBack={goBack} />;
       case "products":
         return <ProductsScreen vendor={vendor} onMenuPress={openDrawer} onBack={goBack} />;
       case "earnings":
