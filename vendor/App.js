@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Modal, Pressable, Animated, Easing, Dimensions } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import BottomNavBar from "./src/components/BottomNavBar";
 import DrawerMenu from "./src/screens/DrawerMenu";
 import DashboardScreen from "./src/screens/DashboardScreen";
 import OrdersScreen from "./src/screens/OrdersScreen";
@@ -13,6 +14,10 @@ import useVendor from "./src/hooks/useVendor";
 const DRAWER_WIDTH = Math.min(300, Dimensions.get("window").width * 0.82);
 const MAIN_TABS = ["home", "orders", "products", "earnings", "profile"];
 
+/**
+ * Application vendeur MeGo Vendor : même structure que l'application livreur
+ * (en-tête, contenu, barre d'onglets en bas, menu latéral). Seules les fonctions changent.
+ */
 export default function App() {
   const [activeNav, setActiveNav] = useState("home");
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -59,8 +64,11 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
-      <SafeAreaView className="flex-1 bg-surface" edges={["top", "left", "right"]}>
-        {renderScreen()}
+      <SafeAreaView className="flex-1 bg-gray-50" edges={["top", "bottom"]}>
+        <View className="flex-1">
+          {renderScreen()}
+          <BottomNavBar activeKey={activeNav} onChange={setActiveNav} />
+        </View>
         <Modal visible={drawerOpen} transparent animationType="none" onRequestClose={closeDrawer}>
           <View className="flex-1 flex-row">
             <Animated.View style={{ width: DRAWER_WIDTH, transform: [{ translateX: slide }] }} className="h-full bg-white">
