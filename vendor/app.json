@@ -7,6 +7,15 @@
     "userInterfaceStyle": "light",
     "splash": { "backgroundColor": "#FFFFFF" },
     "assetBundlePatterns": ["**/*"],
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "MeGo Vendor accede a vos photos pour illustrer vos produits.",
+          "cameraPermission": "MeGo Vendor utilise la camera pour photographier vos produits."
+        }
+      ]
+    ],
     "ios": { "supportsTablet": true },
     "android": { "adaptiveIcon": { "backgroundColor": "#76D865" } },
     "web": { "bundler": "metro" }
