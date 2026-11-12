@@ -12,7 +12,17 @@ export function Card({ children, className = "" }) {
   );
 }
 
-/** Ligne libelle / valeur. */
+/** Titre de section avec action optionnelle a droite. */
+export function SectionTitle({ children, right }) {
+  return (
+    <View className="mb-2 flex-row items-center justify-between">
+      <Text className="text-[13px] font-bold uppercase tracking-wide text-muted">{children}</Text>
+      {right || null}
+    </View>
+  );
+}
+
+/** Ligne libelle / valeur, cliquable si onPress est fourni. */
 export function Row({ label, value, icon, onPress, right }) {
   const content = (
     <View className="flex-row items-center justify-between py-2.5">
@@ -31,23 +41,22 @@ export function Row({ label, value, icon, onPress, right }) {
   );
 }
 
-/** Bouton principal, sombre ou discret. */
+/** Bouton principal (vert), sombre ou discret. */
 export function Button({ label, onPress, variant = "primary", disabled = false, loading = false, icon }) {
-  const styles = { primary: "bg-primary", dark: "bg-navy", ghost: "bg-chip" };
-  const textStyles = { primary: "text-white", dark: "text-white", ghost: "text-ink" };
+  const bg = { primary: "bg-primary", dark: "bg-navy", ghost: "bg-chip" };
   const fg = variant === "ghost" ? colors.ink : "#FFFFFF";
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
-      className={`flex-row items-center justify-center rounded-xl py-3.5 ${styles[variant] || styles.primary} ${disabled ? "opacity-50" : "active:opacity-80"}`}
+      className={`flex-row items-center justify-center rounded-xl py-3.5 ${bg[variant] || bg.primary} ${disabled ? "opacity-50" : "active:opacity-80"}`}
     >
       {loading ? (
         <ActivityIndicator color={fg} />
       ) : (
         <>
           {icon ? <Icon name={icon} size={16} color={fg} /> : null}
-          <Text className={`text-[14px] font-semibold ${textStyles[variant] || textStyles.primary} ${icon ? "ml-2" : ""}`}>
+          <Text className={`text-[14px] font-bold ${variant === "ghost" ? "text-ink" : "text-white"} ${icon ? "ml-2" : ""}`}>
             {label}
           </Text>
         </>
@@ -60,31 +69,22 @@ export function Button({ label, onPress, variant = "primary", disabled = false, 
 export function Badge({ label, tone = "chip" }) {
   const tones = {
     chip: "bg-chip text-muted",
-    primary: "bg-primary-soft text-primary",
-    warn: "bg-[#FEF3C7] text-[#B45309]",
+    primary: "bg-primarySoft text-primary",
+    navy: "bg-navy text-white",
+    warn: "bg-chip text-ink",
   };
-  const cls = tones[tone] || tones.chip;
-  const parts = cls.split(" ");
   return (
-    <View className={`rounded-full px-2.5 py-1 ${parts[0]}`}>
-      <Text className={`text-[11px] font-semibold ${parts[1]}`}>{label}</Text>
+    <View className={`rounded-full px-2.5 py-1 ${(tones[tone] || tones.chip).split(" ")[0]}`}>
+      <Text className={`text-[11px] font-bold ${(tones[tone] || tones.chip).split(" ")[1]}`}>{label}</Text>
     </View>
   );
 }
 
 /** Champ de saisie avec libelle. */
-export function Input({
-  label,
-  value,
-  onChangeText,
-  placeholder,
-  keyboardType = "default",
-  multiline = false,
-  autoCapitalize = "sentences",
-}) {
+export function Input({ label, value, onChangeText, placeholder, keyboardType = "default", multiline = false, secureTextEntry = false, autoCapitalize = "sentences" }) {
   return (
     <View className="mb-3">
-      {label ? <Text className="mb-1.5 text-[12px] text-muted">{label}</Text> : null}
+      {label ? <Text className="mb-1.5 text-[12px] font-semibold text-muted">{label}</Text> : null}
       <TextInput
         value={value}
         onChangeText={onChangeText}
@@ -92,17 +92,12 @@ export function Input({
         placeholderTextColor={colors.muted}
         keyboardType={keyboardType}
         multiline={multiline}
+        secureTextEntry={secureTextEntry}
         autoCapitalize={autoCapitalize}
         className={`rounded-xl border border-line bg-white px-3.5 py-3 text-[14px] text-ink ${multiline ? "h-24" : ""}`}
-        style={multiline ? { textAlignVertical: "top" } : undefined}
       />
     </View>
   );
 }
 
-/** Titre de section. */
-export function SectionTitle({ children }) {
-  return <Text className="mb-2 mt-1 text-[13px] font-bold text-ink">{children}</Text>;
-}
-
-export default { Card, Row, Button, Badge, Input, SectionTitle };
+export default Card;
