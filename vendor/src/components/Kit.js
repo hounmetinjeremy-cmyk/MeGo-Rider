@@ -73,9 +73,12 @@ export function Badge({ label, tone = "chip" }) {
     navy: "bg-navy text-white",
     warn: "bg-chip text-ink",
   };
+  const tone2 = tones[tone] || tones.chip;
+  const bg = tone2.split(" ")[0];
+  const fg = tone2.split(" ")[1];
   return (
-    <View className={`rounded-full px-2.5 py-1 ${(tones[tone] || tones.chip).split(" ")[0]}`}>
-      <Text className={`text-[11px] font-bold ${(tones[tone] || tones.chip).split(" ")[1]}`}>{label}</Text>
+    <View className={`rounded-full px-2.5 py-1 ${bg}`}>
+      <Text className={`text-[11px] font-bold ${fg}`}>{label}</Text>
     </View>
   );
 }
