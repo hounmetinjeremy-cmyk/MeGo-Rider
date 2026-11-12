@@ -28,7 +28,6 @@ export const VENDOR_COLUMNS =
   "id, name, owner_name, phone, email, address, category, logo_url, is_open, rating, wallet_balance, total_earnings, language, created_at";
 
 /* ---------------------------------------------------------------- boutique */
-
 export async function getVendor(vendorId) {
   let query = supabase.from("vendors").select(VENDOR_COLUMNS);
   if (vendorId) query = query.eq("id", vendorId);
@@ -72,7 +71,6 @@ export async function setVendorLanguage(vendorId, language) {
 }
 
 /* ---------------------------------------------------------------- produits */
-
 export async function listProducts(vendorId) {
   const { data, error } = await supabase
     .from("vendor_products")
@@ -86,7 +84,17 @@ export async function listProducts(vendorId) {
 export async function createProduct(vendorId, product) {
   const { data, error } = await supabase
     .from("vendor_products")
-    .insert({ ...product, vendor_id: vendorId })
+    .insert({
+      vendor_id: vendorId,
+      name: product.name,
+      description: product.description || null,
+      price: Number(product.price) || 0,
+      currency: product.currency || "XOF",
+      category: product.category || null,
+      image_url: product.image_url || null,
+      stock: Number(product.stock) || 0,
+      is_available: product.is_available !== false,
+    })
     .select("*")
     .single();
   if (error) throw error;
@@ -113,8 +121,7 @@ export async function deleteProduct(productId) {
   return true;
 }
 
-/* ------------------------------------------------------------ horaires */
-
+/* --------------------------------------------------------------- horaires */
 export async function listSchedule(vendorId) {
   const { data, error } = await supabase
     .from("vendor_schedules")
@@ -129,7 +136,13 @@ export async function saveSchedule(vendorId, weekday, patch) {
   const { data, error } = await supabase
     .from("vendor_schedules")
     .upsert(
-      { vendor_id: vendorId, weekday, ...patch },
+      {
+        vendor_id: vendorId,
+        weekday: weekday,
+        open_time: patch.open_time,
+        close_time: patch.close_time,
+        is_closed: patch.is_closed === true,
+      },
       { onConflict: "vendor_id,weekday" }
     )
     .select("*")
@@ -138,8 +151,7 @@ export async function saveSchedule(vendorId, weekday, patch) {
   return data;
 }
 
-/* --------------------------------------------------------------- banque */
-
+/* ------------------------------------------------------------------ banque */
 export async function listPayoutMethods(vendorId) {
   const { data, error } = await supabase
     .from("vendor_payout_methods")
@@ -153,7 +165,14 @@ export async function listPayoutMethods(vendorId) {
 export async function addPayoutMethod(vendorId, method) {
   const { data, error } = await supabase
     .from("vendor_payout_methods")
-    .insert({ ...method, vendor_id: vendorId })
+    .insert({
+      vendor_id: vendorId,
+      method: method.method || "mobile_money",
+      provider: method.provider,
+      account_name: method.account_name,
+      account_number: method.account_number,
+      is_default: method.is_default === true,
+    })
     .select("*")
     .single();
   if (error) throw error;
@@ -168,8 +187,6 @@ export async function deletePayoutMethod(methodId) {
   if (error) throw error;
   return true;
 }
-
-/* ------------------------------------------------------------- retraits */
 
 export async function listWithdrawals(vendorId) {
   const { data, error } = await supabase
@@ -186,7 +203,7 @@ export async function requestWithdrawal(vendorId, amount, methodId) {
     .from("vendor_withdrawals")
     .insert({
       vendor_id: vendorId,
-      amount,
+      amount: Number(amount) || 0,
       currency: "XOF",
       status: "PENDING",
       payout_method_id: methodId || null,
@@ -197,11 +214,10 @@ export async function requestWithdrawal(vendorId, amount, methodId) {
   return data;
 }
 
-/* ----------------------------------------------------------------- aide */
-
+/* -------------------------------------------------------------------- aide */
 export async function listHelpTopics() {
   const { data, error } = await supabase
-    .from("help_topics")
+    .from("vendor_help_topics")
     .select("*")
     .order("sort_order", { ascending: true });
   if (error) throw error;
@@ -210,7 +226,7 @@ export async function listHelpTopics() {
 
 export async function listTickets(vendorId) {
   const { data, error } = await supabase
-    .from("support_tickets")
+    .from("vendor_support_tickets")
     .select("*")
     .eq("vendor_id", vendorId)
     .order("created_at", { ascending: false });
@@ -220,11 +236,11 @@ export async function listTickets(vendorId) {
 
 export async function createTicket(vendorId, subject, message) {
   const { data, error } = await supabase
-    .from("support_tickets")
+    .from("vendor_support_tickets")
     .insert({
       vendor_id: vendorId,
-      subject,
-      message,
+      subject: subject,
+      message: message,
       status: "OPEN",
     })
     .select("*")
@@ -233,11 +249,10 @@ export async function createTicket(vendorId, subject, message) {
   return data;
 }
 
-/* -------------------------------------------------------- notifications */
-
+/* ----------------------------------------------------------- notifications */
 export async function listNotifications(vendorId) {
   const { data, error } = await supabase
-    .from("notifications")
+    .from("vendor_notifications")
     .select("*")
     .eq("vendor_id", vendorId)
     .order("created_at", { ascending: false });
@@ -247,7 +262,7 @@ export async function listNotifications(vendorId) {
 
 export async function markNotificationRead(id) {
   const { error } = await supabase
-    .from("notifications")
+    .from("vendor_notifications")
     .update({ is_read: true })
     .eq("id", id);
   if (error) throw error;
