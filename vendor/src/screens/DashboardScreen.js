@@ -4,13 +4,13 @@ import AppHeader from "../components/AppHeader";
 import StatCard from "../components/StatCard";
 import OrderCard from "../components/OrderCard";
 import EmptyState from "../components/EmptyState";
-import { computeStats, updateOrderStatus } from "../lib/orders";
+import { STATUS, computeStats, updateOrderStatus } from "../lib/orders";
 
 export default function DashboardScreen({ vendor, orders, loading, error, onRefresh, onMenuPress }) {
   const list = orders || [];
   const stats = computeStats(list);
   const total = stats.total != null ? stats.total : list.length;
-  const inProgress = stats.inProgress != null ? stats.inProgress : 0;
+  const inProgress = list.filter((o) => o.status === STATUS.IN_PROGRESS).length;
   const recent = list.slice(0, 3);
 
   const change = async (order, status) => {
@@ -38,7 +38,12 @@ export default function DashboardScreen({ vendor, orders, loading, error, onRefr
         {!loading && !recent.length ? <EmptyState message="Aucune commande pour le moment !" /> : null}
         <View className="px-4 pb-6">
           {recent.map((o) => (
-            <OrderCard key={o.id} order={o} onAccept={() => change(o, "IN_PROGRESS")} onDeliver={() => change(o, "DELIVERED")} />
+            <OrderCard
+              key={o.id}
+              order={o}
+              onAccept={o.status === STATUS.NEW ? () => change(o, STATUS.IN_PROGRESS) : undefined}
+              onDeliver={o.status === STATUS.IN_PROGRESS ? () => change(o, STATUS.DELIVERED) : undefined}
+            />
           ))}
         </View>
       </ScrollView>
