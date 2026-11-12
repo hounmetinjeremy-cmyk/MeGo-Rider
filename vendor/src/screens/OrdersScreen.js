@@ -4,26 +4,28 @@ import AppHeader from "../components/AppHeader";
 import TopTabBar from "../components/TopTabBar";
 import OrderCard from "../components/OrderCard";
 import EmptyState from "../components/EmptyState";
-import { TABS, STATUS, groupByStatus, updateOrderStatus } from "../lib/orders";
+import { TABS, groupByStatus } from "../lib/orders";
 
-/** Commandes du vendeur : onglets Nouvel Ordre / En traitement / Livre. */
-export default function OrdersScreen({ vendor, orders, setOrders, onMenuPress, onBack }) {
+const EMPTY_MESSAGES = {
+  "Nouvel Ordre": "Aucune nouvelle commande pour le moment !",
+  "En traitement": "Aucune commande en traitement pour le moment !",
+  "Livré": "Aucune commande livrée pour le moment !",
+};
+
+/** Commandes du vendeur (lecture seule) : onglets Nouvel Ordre / En traitement / Livré. */
+export default function OrdersScreen({ vendor, orders, onRefresh, onMenuPress }) {
   const [tab, setTab] = useState(TABS[0]);
-  const [busyId, setBusyId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const grouped = useMemo(() => groupByStatus(orders), [orders]);
   const list = grouped[tab] || [];
 
-  const change = async (order, status) => {
-    setBusyId(order.id);
+  const refresh = async () => {
+    setRefreshing(true);
     try {
-      await updateOrderStatus(order.id, status);
-      setOrders((prev) => (prev || []).map((o) => (o.id === order.id ? { ...o, status } : o)));
-    } catch (e) {
-      // silencieux : l'ecran se rafraichit au prochain chargement
+      if (onRefresh) await onRefresh();
     } finally {
-      setBusyId(null);
+      setRefreshing(false);
     }
   };
 
@@ -33,28 +35,12 @@ export default function OrdersScreen({ vendor, orders, setOrders, onMenuPress, o
       <TopTabBar activeTab={tab} onChange={setTab} />
       <ScrollView
         contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => setRefreshing(false)} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
       >
         {list.length === 0 ? (
-          <EmptyState icon="package" message="Aucune nouvelle commande client pour le moment !" />
+          <EmptyState icon="package" message={EMPTY_MESSAGES[tab]} />
         ) : (
-          list.map((order) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              busy={busyId === order.id}
-              onAccept={
-                order.status === STATUS.NEW ? () => change(order, STATUS.IN_PROGRESS) : undefined
-              }
-              onDeliver={
-                order.status === STATUS.IN_PROGRESS
-                  ? () => change(order, STATUS.DELIVERED)
-                  : undefined
-              }
-            />
-          ))
+          list.map((order) => <OrderCard key={order.id} order={order} />)
         )}
       </ScrollView>
     </View>
