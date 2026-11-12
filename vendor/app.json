@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "MeGo Rider",
-    "slug": "mego-rider",
+    "name": "MeGo Vendor",
+    "slug": "mego-vendor",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
