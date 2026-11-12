@@ -38,7 +38,7 @@ export default function OrdersScreen({ vendor, orders, setOrders, onMenuPress, o
         }
       >
         {list.length === 0 ? (
-          <EmptyState icon="package" message="Aucune commande dans cet onglet." />
+          <EmptyState icon="package" message="Aucune nouvelle commande client pour le moment !" />
         ) : (
           list.map((order) => (
             <OrderCard

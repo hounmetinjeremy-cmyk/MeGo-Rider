@@ -1,6 +1,6 @@
 import { supabase } from "./supabaseClient";
 
-export const TABS = ["Nouvel Ordre", "En traitement", "Livré"];
+export const TABS = ["Nouvelles", "En préparation", "Livré"];
 
 export const STATUS = {
   NEW: "NEW",
