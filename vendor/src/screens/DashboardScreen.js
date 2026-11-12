@@ -4,8 +4,10 @@ import AppHeader from "../components/AppHeader";
 import StatCard from "../components/StatCard";
 import OrderCard from "../components/OrderCard";
 import EmptyState from "../components/EmptyState";
-import { STATUS, computeStats, updateOrderStatus } from "../lib/orders";
+import ShopLinkCard from "../components/ShopLinkCard";
+import { STATUS, computeStats } from "../lib/orders";
 
+/** Tableau de bord vendeur : lien de la boutique, chiffres clés, dernières commandes (lecture seule). */
 export default function DashboardScreen({ vendor, orders, loading, error, onRefresh, onMenuPress }) {
   const list = orders || [];
   const stats = computeStats(list);
@@ -13,17 +15,11 @@ export default function DashboardScreen({ vendor, orders, loading, error, onRefr
   const inProgress = list.filter((o) => o.status === STATUS.IN_PROGRESS).length;
   const recent = list.slice(0, 3);
 
-  const change = async (order, status) => {
-    try {
-      await updateOrderStatus(order.id, status);
-      if (onRefresh) onRefresh();
-    } catch (e) {}
-  };
-
   return (
     <View className="flex-1">
       <AppHeader title="Tableau de bord" subtitle={vendor?.name || "Ma boutique"} onMenuPress={onMenuPress} />
       <ScrollView className="flex-1" refreshControl={<RefreshControl refreshing={!!loading} onRefresh={onRefresh} />}>
+        <ShopLinkCard vendor={vendor} />
         <View className="flex-row gap-3 px-4 pt-4">
           <StatCard icon="package" label="Commandes" value={String(total)} />
           <StatCard icon="truck" label="En cours" value={String(inProgress)} tint="#F59E0B" />
@@ -38,12 +34,7 @@ export default function DashboardScreen({ vendor, orders, loading, error, onRefr
         {!loading && !recent.length ? <EmptyState message="Aucune commande pour le moment !" /> : null}
         <View className="px-4 pb-6">
           {recent.map((o) => (
-            <OrderCard
-              key={o.id}
-              order={o}
-              onAccept={o.status === STATUS.NEW ? () => change(o, STATUS.IN_PROGRESS) : undefined}
-              onDeliver={o.status === STATUS.IN_PROGRESS ? () => change(o, STATUS.DELIVERED) : undefined}
-            />
+            <OrderCard key={o.id} order={o} />
           ))}
         </View>
       </ScrollView>
