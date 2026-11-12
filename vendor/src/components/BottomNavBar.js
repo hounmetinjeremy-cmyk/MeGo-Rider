@@ -5,12 +5,13 @@ import colors from "../theme/colors";
 
 const ITEMS = [
   { key: "home", label: "Accueil", icon: "home" },
-  { key: "wallet", label: "Portefeuille", icon: "wallet" },
+  { key: "orders", label: "Commandes", icon: "truck" },
+  { key: "products", label: "Produits", icon: "package" },
   { key: "earnings", label: "Revenus", icon: "dollar" },
   { key: "profile", label: "Profil", icon: "user" },
 ];
 
-/** Barre de navigation basse : icône au-dessus du texte, actif en vert. */
+/** Barre de navigation basse (identique à celle du livreur) : icône au-dessus du texte, actif en vert. */
 export default function BottomNavBar({ activeKey = "home", onChange }) {
   return (
     <View className="flex-row items-center justify-around border-t border-line bg-navy px-2 pb-2 pt-2">
