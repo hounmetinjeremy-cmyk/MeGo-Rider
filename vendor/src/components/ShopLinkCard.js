@@ -3,7 +3,7 @@ import { View, Text, Pressable, Linking, Share, Platform } from "react-native";
 import { supabase } from "../lib/supabaseClient";
 
 const SHOP_BASE = (
-  process.env.EXPO_PUBLIC_SHOP_URL || "https://mego-shop.hounmetinjeremy.workers.dev"
+  process.env.EXPO_PUBLIC_SHOP_URL || "https://mego-shop.pages.dev"
 ).replace(/\/+$/, "");
 
 /**
