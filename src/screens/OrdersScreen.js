@@ -11,7 +11,7 @@ import TopTabBar from "../components/TopTabBar";
 import OrderCard from "../components/OrderCard";
 import EmptyState from "../components/EmptyState";
 import colors from "../theme/colors";
-import { TABS, acceptOrder, markDelivered } from "../lib/orders";
+import { TABS, acceptOrder, declineOrder, markDelivered } from "../lib/orders";
 
 const EMPTY_MESSAGES = {
   "Nouvel Ordre": "Aucune nouvelle commande pour le moment !",
@@ -40,6 +40,7 @@ export default function OrdersScreen({
     setActionError(null);
     try {
       await fn();
+      if (onRefresh) await onRefresh();
     } catch (e) {
       setActionError(e && e.message ? e.message : "Action impossible");
     } finally {
@@ -93,6 +94,11 @@ export default function OrdersScreen({
               onAccept={
                 item.status === "NEW" && rider
                   ? () => run(item.id, () => acceptOrder(item.id, rider.id))
+                  : undefined
+              }
+              onDecline={
+                item.status === "NEW" && rider && item.offeredRiderId === rider.id
+                  ? () => run(item.id, () => declineOrder(item.id, rider.id))
                   : undefined
               }
               onDeliver={
