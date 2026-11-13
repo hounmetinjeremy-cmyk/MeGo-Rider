@@ -1,13 +1,56 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, ActivityIndicator, Pressable } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { View, Text, ActivityIndicator, Pressable, ScrollView } from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import Icon from "./src/components/Icon";
 import ShopScreen from "./src/screens/ShopScreen";
 import CheckoutScreen from "./src/screens/CheckoutScreen";
 import OrderScreen from "./src/screens/OrderScreen";
 import { readSlug, loadShop, placeOrder, payOrder } from "./src/lib/shop";
 
-export default function App() {
+/**
+ * Filet de securite : si un ecran plante, on affiche le message d'erreur
+ * au lieu d'une page blanche (indispensable sur mobile, ou la console est invisible).
+ */
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error) {
+    if (typeof console !== "undefined") console.error("MeGo Shop:", error);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <SafeAreaView className="flex-1 items-center justify-center bg-surface px-8">
+          <View className="h-14 w-14 items-center justify-center rounded-2xl bg-chip">
+            <Icon name="info" size={24} color="#7E8B9B" />
+          </View>
+          <Text className="mt-3 text-center text-[15px] font-bold text-ink">
+            La boutique n'a pas pu s'afficher
+          </Text>
+          <ScrollView className="mt-2 max-h-40 w-full">
+            <Text className="text-center text-[12px] text-muted">
+              {String((this.state.error && this.state.error.message) || this.state.error)}
+            </Text>
+          </ScrollView>
+          <Pressable
+            onPress={() => this.setState({ error: null })}
+            className="mt-5 rounded-2xl bg-primary px-5 py-3 active:opacity-80"
+          >
+            <Text className="text-[14px] font-bold text-white">Reessayer</Text>
+          </Pressable>
+        </SafeAreaView>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function ShopApp() {
   const [slug, setSlug] = useState("");
   const [shop, setShop] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -40,6 +83,7 @@ export default function App() {
   }, [boot]);
 
   const add = (p) => setCart((c) => ({ ...c, [p.id]: (c[p.id] || 0) + 1 }));
+
   const remove = (p) =>
     setCart((c) => {
       const n = { ...c };
@@ -121,5 +165,15 @@ export default function App() {
         onCheckout={() => setScreen("checkout")}
       />
     </SafeAreaView>
+  );
+}
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <ErrorBoundary>
+        <ShopApp />
+      </ErrorBoundary>
+    </SafeAreaProvider>
   );
 }
