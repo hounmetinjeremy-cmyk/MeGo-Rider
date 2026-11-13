@@ -7,13 +7,17 @@ const SHOP_BASE = (
 ).replace(/\/+$/, "");
 
 /**
- * Carte « Ma boutique » : le lien à partager avec les clients (WhatsApp, Facebook, copie).
+ * Carte « Ma boutique » : le lien à partager avec les clients (WhatsApp, Facebook, copie)
+ * et la position de la boutique, utilisée pour trouver le livreur le plus proche.
  * Le nom court (slug) est créé automatiquement par la base à partir du nom de la boutique.
  */
 export default function ShopLinkCard({ vendor }) {
   const [slug, setSlug] = useState(null);
   const [status, setStatus] = useState("loading"); // loading | ready | missing
   const [copied, setCopied] = useState(false);
+  const [hasPosition, setHasPosition] = useState(false);
+  const [posBusy, setPosBusy] = useState(false);
+  const [posMsg, setPosMsg] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -21,7 +25,7 @@ export default function ShopLinkCard({ vendor }) {
     setStatus("loading");
     supabase
       .from("vendors")
-      .select("slug")
+      .select("slug, latitude, longitude")
       .eq("id", vendor.id)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -30,6 +34,7 @@ export default function ShopLinkCard({ vendor }) {
           setStatus("missing");
         } else {
           setSlug(data.slug);
+          setHasPosition(data.latitude != null && data.longitude != null);
           setStatus("ready");
         }
       })
@@ -70,6 +75,37 @@ export default function ShopLinkCard({ vendor }) {
     Share.share({ message }).catch(() => {});
   }, [message]);
 
+  /** Enregistre la position actuelle comme position de la boutique (le livreur vient la chercher ici). */
+  const savePosition = useCallback(() => {
+    if (!vendor || !vendor.id) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setPosMsg("Position indisponible sur cet appareil.");
+      return;
+    }
+    setPosBusy(true);
+    setPosMsg("");
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { error } = await supabase
+          .from("vendors")
+          .update({ latitude: pos.coords.latitude, longitude: pos.coords.longitude })
+          .eq("id", vendor.id);
+        setPosBusy(false);
+        if (error) {
+          setPosMsg("Enregistrement impossible, réessaie.");
+        } else {
+          setHasPosition(true);
+          setPosMsg("Position de la boutique enregistrée.");
+        }
+      },
+      () => {
+        setPosBusy(false);
+        setPosMsg("Position refusée : autorise la localisation dans le navigateur, puis réessaie.");
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  }, [vendor && vendor.id]);
+
   return (
     <View className="mx-4 mt-4 rounded-xl bg-white p-4 shadow-sm">
       <Text className="text-[15px] font-bold text-ink">Ma boutique</Text>
@@ -102,6 +138,25 @@ export default function ShopLinkCard({ vendor }) {
             <Pressable onPress={share} className="flex-1 items-center rounded-lg bg-chip py-2.5 active:opacity-80">
               <Text className="text-[12px] font-semibold text-ink">Autre</Text>
             </Pressable>
+          </View>
+
+          <View className="mt-4 border-t border-line pt-3">
+            <Text className="text-[13px] font-semibold text-ink">
+              Position de la boutique : {hasPosition ? "enregistrée" : "non enregistrée"}
+            </Text>
+            <Text className="mt-1 text-[12px] text-muted">
+              Le livreur le plus proche de cette position vient récupérer les commandes. Fais-le depuis ta boutique.
+            </Text>
+            <Pressable
+              onPress={savePosition}
+              disabled={posBusy}
+              className="mt-2 items-center rounded-lg bg-chip py-2.5 active:opacity-80"
+            >
+              <Text className="text-[12px] font-semibold text-ink">
+                {posBusy ? "Recherche de ta position…" : "Utiliser ma position actuelle"}
+              </Text>
+            </Pressable>
+            {posMsg ? <Text className="mt-2 text-[12px] text-muted">{posMsg}</Text> : null}
           </View>
         </View>
       ) : null}
