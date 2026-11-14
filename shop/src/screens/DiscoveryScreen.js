@@ -1,6 +1,17 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, Image, TextInput, ActivityIndicator, RefreshControl } from "react-native";
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  Image,
+  TextInput,
+  ActivityIndicator,
+  RefreshControl,
+  Linking,
+} from "react-native";
 import Icon from "../components/Icon";
+import { supabase } from "../lib/supabaseClient";
 import { loadDiscovery, toggleLike, addComment, money } from "../lib/shop";
 
 function ShopCard({ shop, onOpen, onLike, onComment }) {
@@ -72,13 +83,21 @@ function ShopCard({ shop, onOpen, onLike, onComment }) {
       ) : null}
 
       <View className="mt-3 flex-row items-center">
-        <Pressable onPress={() => onLike(shop.slug)} className="mr-2 flex-row items-center rounded-full bg-surface px-3 py-1.5">
+        <Pressable
+          onPress={() => onLike(shop.slug)}
+          className="mr-2 flex-row items-center rounded-full bg-surface px-3 py-1.5"
+        >
           <Icon name="check" size={14} color={shop.liked ? "#76D865" : "#7E8B9B"} />
           <Text className="ml-1 text-[12px] font-bold text-ink">{shop.likes_count || 0}</Text>
         </Pressable>
-        <Pressable onPress={() => setOpen((v) => !v)} className="flex-row items-center rounded-full bg-surface px-3 py-1.5">
+        <Pressable
+          onPress={() => setOpen((v) => !v)}
+          className="flex-row items-center rounded-full bg-surface px-3 py-1.5"
+        >
           <Icon name="info" size={14} color="#7E8B9B" />
-          <Text className="ml-1 text-[12px] font-bold text-ink">{comments.length}</Text>
+          <Text className="ml-1 text-[12px] font-bold text-ink">
+            {shop.comments_count != null ? shop.comments_count : comments.length}
+          </Text>
         </Pressable>
         <View className="flex-1" />
         <Pressable onPress={() => onOpen(shop.slug)} className="rounded-full bg-navy px-4 py-1.5">
@@ -93,7 +112,7 @@ function ShopCard({ shop, onOpen, onLike, onComment }) {
           ) : (
             comments.map((c) => (
               <View key={c.id} className="mb-2">
-                <Text className="text-[12px] font-bold text-ink">{c.author || "Client"}</Text>
+                <Text className="text-[12px] font-bold text-ink">{c.author_name || c.author || "Client"}</Text>
                 <Text className="text-[12px] text-muted">{c.body}</Text>
               </View>
             ))
@@ -125,8 +144,34 @@ function ShopCard({ shop, onOpen, onLike, onComment }) {
   );
 }
 
+// Boutons "Devenir Vendeur" / "Devenir Livreur" (liens reglables dans app_settings :
+// vendor_signup_url et rider_signup_url).
+function JoinBar({ links }) {
+  const go = (url) => {
+    if (url) Linking.openURL(url);
+  };
+  const Btn = ({ label, url }) => (
+    <Pressable
+      onPress={() => go(url)}
+      disabled={!url}
+      className={"mr-2 flex-1 items-center rounded-2xl py-3 " + (url ? "bg-primary" : "bg-chip")}
+    >
+      <Text className={"text-[13px] font-bold " + (url ? "text-white" : "text-muted")}>
+        {url ? label : label + " (bientot)"}
+      </Text>
+    </Pressable>
+  );
+  return (
+    <View className="mb-3 flex-row">
+      <Btn label="Devenir Vendeur" url={links.vendor_signup_url} />
+      <Btn label="Devenir Livreur" url={links.rider_signup_url} />
+    </View>
+  );
+}
+
 export default function DiscoveryScreen({ onBack, onOpenShop }) {
   const [shops, setShops] = useState([]);
+  const [links, setLinks] = useState({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -134,14 +179,20 @@ export default function DiscoveryScreen({ onBack, onOpenShop }) {
   const load = useCallback(async () => {
     setError("");
     const data = await loadDiscovery(30, 0);
-    if (Array.isArray(data)) {
-      setShops(data);
-    } else if (data && data.ok === false) {
+    if (data && data.ok === false) {
       setError(data.error || "Chargement impossible");
       setShops([]);
+    } else if (data && Array.isArray(data.shops)) {
+      setShops(data.shops);
+    } else if (Array.isArray(data)) {
+      setShops(data);
     } else {
       setShops([]);
     }
+    try {
+      const r = await supabase.rpc("get_public_links");
+      if (r && r.data) setLinks(r.data);
+    } catch (e) {}
   }, []);
 
   useEffect(() => {
@@ -175,8 +226,13 @@ export default function DiscoveryScreen({ onBack, onOpenShop }) {
     return res;
   };
 
+  // Ouvre la boutique choisie : par defaut on recharge l'appli sur /?b=<slug>.
   const open = (slug) => {
-    if (typeof onOpenShop === "function") onOpenShop(slug);
+    if (typeof onOpenShop === "function") {
+      onOpenShop(slug);
+      return;
+    }
+    if (typeof window !== "undefined") window.location.href = "/?b=" + encodeURIComponent(slug);
   };
 
   return (
@@ -197,6 +253,7 @@ export default function DiscoveryScreen({ onBack, onOpenShop }) {
           contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
         >
+          <JoinBar links={links} />
           {error ? <Text className="mb-3 text-[13px] text-red-500">{error}</Text> : null}
           {shops.length === 0 && !error ? (
             <View className="items-center rounded-2xl bg-white py-10">
