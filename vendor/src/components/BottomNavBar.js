@@ -5,7 +5,7 @@ import colors from "../theme/colors";
 
 const ITEMS = [
   { key: "marketplace", label: "Accueil", icon: "home" },
-  { key: "home", label: "Boutique", icon: "package" },
+  { key: "home", label: "Gestion", icon: "package" },
   { key: "orders", label: "Commandes", icon: "truck" },
   { key: "products", label: "Produits", icon: "card" },
   { key: "earnings", label: "Revenus", icon: "dollar" },
