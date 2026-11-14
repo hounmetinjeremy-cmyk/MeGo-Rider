@@ -32,11 +32,12 @@ const MAIN_TABS = ["marketplace", "home", "wallet", "earnings"];
  * - activeNav : onglet principal (marketplace, home, wallet, earnings) ou écran du drawer
  *   (profile, language, vehicle, schedule, banking, help, about, privacy, product)
  * - drawerOpen : ouverture du menu latéral (le profil s'y trouve)
+ * L'application s'ouvre sur l'Accueil (marketplace).
  */
 export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [activeNav, setActiveNav] = useState("home");
-  const lastTab = useRef("home");
+  const [activeNav, setActiveNav] = useState("marketplace");
+  const lastTab = useRef("marketplace");
 
   const {
     rider,

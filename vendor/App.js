@@ -19,15 +19,14 @@ const MAIN_TABS = ["marketplace", "home", "orders", "products", "earnings"];
 /**
  * Application vendeur MeGo Vendor : même structure que l'application livreur
  * (en-tête, contenu, barre d'onglets en bas, menu latéral). Seules les fonctions changent.
- * Le vendeur ajoute ses produits et partage le lien de sa boutique ; le livreur est choisi par le système.
- * Le profil se trouve dans le menu latéral (les trois traits en haut).
+ * L'application s'ouvre sur l'Accueil (marketplace). Le profil se trouve dans le menu latéral.
  */
 export default function App() {
-  const [activeNav, setActiveNav] = useState("home");
+  const [activeNav, setActiveNav] = useState("marketplace");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const slide = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const fade = useRef(new Animated.Value(0)).current;
-  const lastTab = useRef("home");
+  const lastTab = useRef("marketplace");
   const { vendor, orders, loading, error, reload, toggleOpen } = useVendor();
 
   const openDrawer = useCallback(() => setDrawerOpen(true), []);

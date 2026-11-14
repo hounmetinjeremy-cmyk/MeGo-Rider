@@ -12,6 +12,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import Icon from "./Icon";
 import { Card, Input, Button, SectionTitle } from "./Kit";
+import ZoneFeesCard from "./ZoneFeesCard";
 import colors from "../theme/colors";
 import { createProduct, updateProduct } from "../lib/db";
 import { uploadProductImage } from "../lib/storage";
@@ -26,7 +27,7 @@ const EMPTY = {
   is_available: true,
 };
 
-/** Modale d'ajout / modification d'un produit, avec photo. */
+/** Modale d'ajout / modification d'un produit, avec photo et frais de livraison par zone. */
 export default function ProductFormModal({ visible, onClose, vendor, product, onSaved }) {
   const [form, setForm] = useState(EMPTY);
   const [asset, setAsset] = useState(null);
@@ -211,6 +212,8 @@ export default function ProductFormModal({ visible, onClose, vendor, product, on
                 />
               </View>
             </Card>
+
+            <ZoneFeesCard vendor={vendor} />
 
             {error ? <Text className="mb-3 text-[12px] text-red-500">{error}</Text> : null}
 
