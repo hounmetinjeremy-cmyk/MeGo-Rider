@@ -21,7 +21,7 @@ class ErrorBoundary extends React.Component {
     return { error };
   }
   componentDidCatch(error) {
-    if (typeof console !== "undefined") console.error("MeGo Shop:", error);
+    if (typeof console != "undefined") console.error("MeGo Shop:", error);
   }
   render() {
     if (this.state.error) {
@@ -82,6 +82,10 @@ function ShopApp() {
   useEffect(() => {
     boot();
   }, [boot]);
+
+  // CAS A (false) : vitrine privee, aucun acces vers le flux global / devenir vendeur / livreur.
+  // CAS B (true) : bouton discret vers la marketplace.
+  const marketplaceOpen = !!(shop && shop.vendor && shop.vendor.is_marketplace_visible === true);
 
   const add = (p) => setCart((c) => ({ ...c, [p.id]: (c[p.id] || 0) + 1 }));
 
@@ -144,7 +148,7 @@ function ShopApp() {
     );
   }
 
-  if (screen === "discovery") {
+  if (screen === "discovery" && marketplaceOpen) {
     return (
       <SafeAreaView className="flex-1 bg-surface">
         <DiscoveryScreen onBack={() => setScreen("shop")} />
@@ -172,9 +176,14 @@ function ShopApp() {
         remove={remove}
         onCheckout={() => setScreen("checkout")}
       />
-        <Pressable onPress={() => setScreen("discovery")} className="absolute bottom-24 right-4 rounded-full bg-navy px-4 py-3">
+      {marketplaceOpen ? (
+        <Pressable
+          onPress={() => setScreen("discovery")}
+          className="absolute bottom-24 right-4 rounded-full bg-navy px-4 py-3"
+        >
           <Text className="text-[13px] font-bold text-white">Decouverte</Text>
         </Pressable>
+      ) : null}
     </SafeAreaView>
   );
 }
