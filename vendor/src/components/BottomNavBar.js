@@ -4,11 +4,11 @@ import Icon from "./Icon";
 import colors from "../theme/colors";
 
 const ITEMS = [
+  { key: "marketplace", label: "Marketplace", icon: "globe" },
   { key: "home", label: "Accueil", icon: "home" },
   { key: "orders", label: "Commandes", icon: "truck" },
   { key: "products", label: "Produits", icon: "package" },
   { key: "earnings", label: "Revenus", icon: "dollar" },
-  { key: "profile", label: "Profil", icon: "user" },
 ];
 
 /** Barre de navigation basse (identique à celle du livreur) : icône au-dessus du texte, actif en vert. */

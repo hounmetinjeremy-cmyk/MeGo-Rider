@@ -4,10 +4,10 @@ import Icon from "./Icon";
 import colors from "../theme/colors";
 
 const ITEMS = [
+  { key: "marketplace", label: "Marketplace", icon: "globe" },
   { key: "home", label: "Accueil", icon: "home" },
   { key: "wallet", label: "Portefeuille", icon: "wallet" },
   { key: "earnings", label: "Revenus", icon: "dollar" },
-  { key: "profile", label: "Profil", icon: "user" },
 ];
 
 /** Barre de navigation basse : icône au-dessus du texte, actif en vert. */

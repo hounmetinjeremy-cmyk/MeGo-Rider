@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, Pressable, FlatList, TextInput, Linking, StyleSheet, ActivityIndicator, Platform } from "react-native";
+import { View, Text, Pressable, FlatList, TextInput, Linking, StyleSheet, ActivityIndicator } from "react-native";
 
 // Marketplace sociale : boutiques visibles + produits, likes, commentaires.
 // Source : fonction get_discovery (boutiques dont l'interrupteur is_marketplace_visible est active).
@@ -122,7 +122,8 @@ function ShopCard({ shop, role }) {
   );
 }
 
-export default function MarketplaceScreen({ role = "Membre", onClose }) {
+// Onglet Marketplace : le bouton ☰ ouvre le menu latéral (profil, etc.)
+export default function MarketplaceScreen({ role = "Membre", onMenuPress, onClose }) {
   const [shops, setShops] = useState(null);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -145,10 +146,17 @@ export default function MarketplaceScreen({ role = "Membre", onClose }) {
   return (
     <View style={s.screen}>
       <View style={s.header}>
-        <Text style={s.title}>Marketplace</Text>
-        <Pressable onPress={onClose} style={s.btnGhost}>
-          <Text style={s.btnGhostTxt}>Fermer ✕</Text>
-        </Pressable>
+        {onMenuPress ? (
+          <Pressable onPress={onMenuPress} style={s.btnGhost}>
+            <Text style={s.btnGhostTxt}>☰</Text>
+          </Pressable>
+        ) : null}
+        <Text style={[s.title, { flex: 1 }]}>Marketplace</Text>
+        {onClose ? (
+          <Pressable onPress={onClose} style={s.btnGhost}>
+            <Text style={s.btnGhostTxt}>Fermer ✕</Text>
+          </Pressable>
+        ) : null}
       </View>
       {shops === null ? (
         <ActivityIndicator style={{ marginTop: 40 }} />
@@ -172,8 +180,8 @@ export default function MarketplaceScreen({ role = "Membre", onClose }) {
 }
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#f4f4f2", paddingTop: Platform.OS === "web" ? 0 : 44 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 14, backgroundColor: "#fff" },
+  screen: { flex: 1, backgroundColor: "#f4f4f2" },
+  header: { flexDirection: "row", alignItems: "center", padding: 14, backgroundColor: "#fff" },
   title: { fontSize: 20, fontWeight: "700", color: "#1a1a1a" },
   card: { backgroundColor: "#fff", borderRadius: 14, padding: 14, marginBottom: 12 },
   name: { fontSize: 17, fontWeight: "700", color: "#1a1a1a" },

@@ -18,19 +18,20 @@ import HelpScreen from "./src/screens/HelpScreen";
 import AboutScreen from "./src/screens/AboutScreen";
 import PrivacyScreen from "./src/screens/PrivacyScreen";
 import ProductScreen from "./src/screens/ProductScreen";
+import MarketplaceScreen from "./src/screens/MarketplaceScreen";
 import useRider from "./src/hooks/useRider";
 import useOrders from "./src/hooks/useOrders";
 
 const DRAWER_WIDTH = Math.min(Dimensions.get("window").width * 0.82, 340);
-const MAIN_TABS = ["home", "wallet", "earnings", "profile"];
+const MAIN_TABS = ["marketplace", "home", "wallet", "earnings"];
 
 /**
  * Application livreur MeGo Rider.
  *
  * État global :
- * - activeNav : onglet principal (home, wallet, earnings, profile) ou écran du drawer
- *   (language, vehicle, schedule, banking, help, about, privacy, product)
- * - drawerOpen : ouverture du menu latéral
+ * - activeNav : onglet principal (marketplace, home, wallet, earnings) ou écran du drawer
+ *   (profile, language, vehicle, schedule, banking, help, about, privacy, product)
+ * - drawerOpen : ouverture du menu latéral (le profil s'y trouve)
  */
 export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -125,7 +126,9 @@ export default function App() {
   }, [activeNav]);
 
   let screen = null;
-  if (activeNav === "wallet") {
+  if (activeNav === "marketplace") {
+    screen = <MarketplaceScreen role="Livreur" onMenuPress={openDrawer} />;
+  } else if (activeNav === "wallet") {
     screen = (
       <WalletScreen
         rider={rider}

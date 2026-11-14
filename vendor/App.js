@@ -10,15 +10,17 @@ import ProductsScreen from "./src/screens/ProductsScreen";
 import EarningsScreen from "./src/screens/EarningsScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import ZonesScreen from "./src/screens/ZonesScreen";
+import MarketplaceScreen from "./src/screens/MarketplaceScreen";
 import useVendor from "./src/hooks/useVendor";
 
 const DRAWER_WIDTH = Math.min(300, Dimensions.get("window").width * 0.82);
-const MAIN_TABS = ["home", "orders", "products", "earnings", "profile"];
+const MAIN_TABS = ["marketplace", "home", "orders", "products", "earnings"];
 
 /**
  * Application vendeur MeGo Vendor : même structure que l'application livreur
  * (en-tête, contenu, barre d'onglets en bas, menu latéral). Seules les fonctions changent.
  * Le vendeur ajoute ses produits et partage le lien de sa boutique ; le livreur est choisi par le système.
+ * Le profil se trouve dans le menu latéral (les trois traits en haut).
  */
 export default function App() {
   const [activeNav, setActiveNav] = useState("home");
@@ -50,6 +52,8 @@ export default function App() {
 
   const renderScreen = () => {
     switch (activeNav) {
+      case "marketplace":
+        return <MarketplaceScreen role="Vendeur" onMenuPress={openDrawer} />;
       case "orders":
         return <OrdersScreen vendor={vendor} orders={orders} onRefresh={reload} onMenuPress={openDrawer} onBack={goBack} />;
       case "products":
