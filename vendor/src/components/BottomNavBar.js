@@ -4,8 +4,8 @@ import Icon from "./Icon";
 import colors from "../theme/colors";
 
 const ITEMS = [
-  { key: "marketplace", label: "Marketplace", icon: "globe" },
-  { key: "home", label: "Accueil", icon: "home" },
+  { key: "marketplace", label: "Accueil", icon: "home" },
+  { key: "home", label: "Tableau", icon: "home" },
   { key: "orders", label: "Commandes", icon: "truck" },
   { key: "products", label: "Produits", icon: "package" },
   { key: "earnings", label: "Revenus", icon: "dollar" },
