@@ -96,7 +96,7 @@ export default function OrderCard({ order, onAccept, onDecline, onDeliver, busy 
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <Text className="text-[14px] font-semibold text-white">
-                  Marquer comme livrée
+                  Valider la livraison (code client)
                 </Text>
               )}
             </Pressable>

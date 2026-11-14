@@ -126,7 +126,22 @@ export async function updateRiderLocation(riderId, latitude, longitude) {
   }
 }
 
-/** Le livreur marque la commande comme livrée. */
+/** Le livreur valide la livraison avec le code client : libère le séquestre. */
+export async function confirmDeliveryQr(orderId, riderId, code) {
+  const clean = String(code || "").trim().toUpperCase();
+  if (!clean) throw new Error("Saisis le code de livraison du client.");
+  const { data, error } = await supabase.rpc("confirm_delivery_qr", {
+    p_order_id: orderId,
+    p_rider_id: riderId,
+    p_code: clean,
+  });
+  if (error) throw error;
+  if (data && data.ok === false) {
+    throw new Error(data.message || "Code de livraison invalide.");
+  }
+  return data;
+}
+/** Repli : marque la commande livrée sans code (séquestre non libéré). */
 export async function markDelivered(orderId) {
   const { data, error } = await supabase
     .from("orders")

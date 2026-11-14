@@ -65,3 +65,13 @@ export function readLastOrder() {
 export function money(n) {
   return Number(n || 0).toLocaleString("fr-FR") + " F";
 }
+
+/** Code de livraison (QR) de la commande, cote client. */
+export async function getOrderQr(orderId) {
+  const { data, error } = await supabase.rpc("get_order_qr", {
+    p_order_id: orderId,
+  });
+  if (error || !data) return null;
+  if (typeof data === "string") return { qr_code: data };
+  return data;
+}

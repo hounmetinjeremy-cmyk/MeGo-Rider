@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import Icon from "../components/Icon";
-import { money, getStatus } from "../lib/shop";
+import { money, getStatus, getOrderQr } from "../lib/shop";
 
 const LABEL = {
   WAITING_PAYMENT: "Paiement en attente",
@@ -16,12 +16,15 @@ const LABEL = {
 export default function OrderScreen({ orderId, onBack, onNew }) {
   const [st, setSt] = useState(null);
   const [busy, setBusy] = useState(true);
+  const [qr, setQr] = useState(null);
 
   const refresh = async () => {
     setBusy(true);
     const r = await getStatus(orderId);
     setBusy(false);
     if (r && r.ok !== false) setSt(r);
+    const q = await getOrderQr(orderId);
+    if (q) setQr(q);
   };
 
   useEffect(() => {
@@ -70,6 +73,17 @@ export default function OrderScreen({ orderId, onBack, onNew }) {
           </View>
         ) : null}
 
+        {qr && qr.qr_code && !done ? (
+          <View className="mt-3 items-center rounded-2xl bg-white p-4">
+            <Text className="text-[13px] font-bold text-ink">Code de livraison</Text>
+            <Text className="mt-1 text-center text-[12px] text-muted">
+              Donne ce code au livreur pour confirmer la reception.
+            </Text>
+            <Text className="mt-3 text-[22px] font-extrabold tracking-widest text-primary">
+              {qr.qr_code}
+            </Text>
+          </View>
+        ) : null}
         <View className="mt-3 rounded-2xl bg-white p-4">
           <Text className="mb-2 text-[13px] font-bold text-ink">Recapitulatif</Text>
           {(st && st.items ? st.items : []).map((it, i) => (
