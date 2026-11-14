@@ -17,7 +17,7 @@ export async function loadShop(slug) {
   return data || { ok: false, error: "Boutique introuvable" };
 }
 
-export async function placeOrder({ slug, items, name, phone, address, lat, lng, note }) {
+export async function placeOrder({ slug, items, name, phone, address, lat, lng, note, zoneId }) {
   const { data, error } = await supabase.rpc("place_order", {
     p_slug: slug,
     p_items: items,
@@ -27,6 +27,7 @@ export async function placeOrder({ slug, items, name, phone, address, lat, lng, 
     p_lat: lat,
     p_lng: lng,
     p_note: note || null,
+    p_zone_id: zoneId || null,
   });
   if (error) return { ok: false, error: error.message };
   return data || { ok: false, error: "Commande impossible" };
@@ -74,4 +75,38 @@ export async function getOrderQr(orderId) {
   if (error || !data) return null;
   if (typeof data === "string") return { qr_code: data };
   return data;
+}
+
+const DEVICE_KEY = "mego_device_id";
+export function deviceId() {
+  try {
+    if (typeof window === "undefined") return "";
+    let v = window.localStorage.getItem(DEVICE_KEY);
+    if (!v) {
+      v = "d" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      window.localStorage.setItem(DEVICE_KEY, v);
+    }
+    return v;
+  } catch (e) { return ""; }
+}
+export async function loadDiscovery(limit = 20, offset = 0) {
+  const { data, error } = await supabase.rpc("get_discovery", {
+    p_limit: limit, p_offset: offset, p_device_id: deviceId() || null,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, shops: Array.isArray(data) ? data : (data && data.shops) || [] };
+}
+export async function toggleLike(slug) {
+  const { data, error } = await supabase.rpc("toggle_shop_like", {
+    p_slug: slug, p_device_id: deviceId() || null,
+  });
+  if (error) return { ok: false, error: error.message };
+  return data || { ok: false, error: "Like impossible" };
+}
+export async function addComment(slug, author, body) {
+  const { data, error } = await supabase.rpc("add_shop_comment", {
+    p_slug: slug, p_device_id: deviceId() || null, p_author: author || null, p_body: body,
+  });
+  if (error) return { ok: false, error: error.message };
+  return data || { ok: false, error: "Commentaire impossible" };
 }

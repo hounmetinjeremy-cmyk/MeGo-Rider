@@ -8,6 +8,8 @@ export default function CheckoutScreen({ shop, cart, onBack, onPlaced }) {
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [note, setNote] = useState("");
+  const [zoneId, setZoneId] = useState("");
+  const zones = (shop && shop.zones) || [];
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const products = shop.products || [];
@@ -23,7 +25,7 @@ export default function CheckoutScreen({ shop, cart, onBack, onPlaced }) {
     }
     setBusy(true);
     setErr("");
-    const res = await onPlaced({ name, phone, address, note });
+    const res = await onPlaced({ name, phone, address, note, zoneId });
     setBusy(false);
     if (!res || res.ok === false) setErr((res && res.error) || "Commande impossible");
   };
@@ -77,6 +79,18 @@ export default function CheckoutScreen({ shop, cart, onBack, onPlaced }) {
 
         <View className="rounded-2xl bg-white p-4">
           <Text className="mb-2 text-[13px] font-bold text-ink">Livraison</Text>
+          {zones.length > 0 && (
+            <View className="mb-3">
+              <Text className="mb-2 text-[12px] font-bold text-muted">Zone de livraison</Text>
+              <View className="flex-row flex-wrap">
+                {zones.map((z) => (
+                  <Pressable key={z.id} onPress={() => setZoneId(z.id)} className={"mb-2 mr-2 rounded-full px-3 py-1.5 " + (zoneId === z.id ? "bg-navy" : "bg-slate-100")}>
+                    <Text className={"text-[12px] font-bold " + (zoneId === z.id ? "text-white" : "text-ink")}>{z.name} - {z.fee} F</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
           <Field label="Nom" value={name} set={setName} placeholder="Ton nom" />
           <Field label="Telephone" value={phone} set={setPhone} placeholder="+229 ..." keyboard="phone-pad" />
           <Field label="Adresse" value={address} set={setAddress} placeholder="Quartier, repere" multiline />

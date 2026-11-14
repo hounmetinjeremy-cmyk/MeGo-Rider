@@ -11,6 +11,7 @@ const ITEMS = [
   { key: "profile", icon: "user", label: "Profil" },
   { key: "bank", icon: "card", label: "Compte bancaire" },
   { key: "schedule", icon: "clock", label: "Horaires" },
+  { key: "zones", icon: "pin", label: "Zones de livraison" },
   { key: "language", icon: "globe", label: "Langue" },
   { key: "help", icon: "help", label: "Aide" },
   { key: "about", icon: "info", label: "A propos" },

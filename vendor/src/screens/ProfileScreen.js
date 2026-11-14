@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, ScrollView, Switch } from "react-native";
 import AppHeader from "../components/AppHeader";
+import MarketplaceToggle from "../components/MarketplaceToggle";
 import { Card, SectionTitle, Button, Input, Row } from "../components/Kit";
 import colors from "../theme/colors";
 import { updateVendor, setVendorOpen } from "../lib/db";
@@ -84,6 +85,7 @@ export default function ProfileScreen({ vendor, onMenuPress, onBack }) {
               trackColor={{ false: colors.line, true: colors.primary }}
               thumbColor="#FFFFFF"
             />
+            <MarketplaceToggle vendor={vendor} />
           </View>
         </Card>
 

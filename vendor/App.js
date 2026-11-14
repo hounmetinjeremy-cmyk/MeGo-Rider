@@ -9,6 +9,7 @@ import OrdersScreen from "./src/screens/OrdersScreen";
 import ProductsScreen from "./src/screens/ProductsScreen";
 import EarningsScreen from "./src/screens/EarningsScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
+import ZonesScreen from "./src/screens/ZonesScreen";
 import useVendor from "./src/hooks/useVendor";
 
 const DRAWER_WIDTH = Math.min(300, Dimensions.get("window").width * 0.82);
@@ -55,6 +56,8 @@ export default function App() {
         return <ProductsScreen vendor={vendor} onMenuPress={openDrawer} onBack={goBack} />;
       case "earnings":
         return <EarningsScreen vendor={vendor} orders={orders} onMenuPress={openDrawer} onBack={goBack} />;
+      case "zones":
+        return <ZonesScreen vendor={vendor} onMenuPress={openDrawer} onBack={goBack} />;
       case "profile":
         return <ProfileScreen vendor={vendor} onMenuPress={openDrawer} onBack={goBack} />;
       default:

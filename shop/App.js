@@ -6,6 +6,7 @@ import ShopScreen from "./src/screens/ShopScreen";
 import CheckoutScreen from "./src/screens/CheckoutScreen";
 import OrderScreen from "./src/screens/OrderScreen";
 import { readSlug, loadShop, placeOrder, payOrder } from "./src/lib/shop";
+import DiscoveryScreen from "./src/screens/DiscoveryScreen";
 
 /**
  * Filet de securite : si un ecran plante, on affiche le message d'erreur
@@ -93,9 +94,9 @@ function ShopApp() {
       return n;
     });
 
-  const onPlaced = async ({ name, phone, address, note }) => {
+  const onPlaced = async ({ name, phone, address, note, zoneId }) => {
     const items = Object.keys(cart).map((id) => ({ id, qty: cart[id] }));
-    const res = await placeOrder({ slug, items, name, phone, address, lat: null, lng: null, note });
+    const res = await placeOrder({ slug, items, name, phone, address, lat: null, lng: null, note, zoneId });
     if (!res || res.ok === false) return res || { ok: false, error: "Commande impossible" };
     setOrderId(res.order_id);
     setCart({});
@@ -143,6 +144,13 @@ function ShopApp() {
     );
   }
 
+  if (screen === "discovery") {
+    return (
+      <SafeAreaView className="flex-1 bg-surface">
+        <DiscoveryScreen onBack={() => setScreen("shop")} />
+      </SafeAreaView>
+    );
+  }
   if (screen === "order") {
     return (
       <SafeAreaView className="flex-1 bg-surface">
@@ -164,6 +172,9 @@ function ShopApp() {
         remove={remove}
         onCheckout={() => setScreen("checkout")}
       />
+        <Pressable onPress={() => setScreen("discovery")} className="absolute bottom-24 right-4 rounded-full bg-navy px-4 py-3">
+          <Text className="text-[13px] font-bold text-white">Decouverte</Text>
+        </Pressable>
     </SafeAreaView>
   );
 }
