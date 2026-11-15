@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, ActivityIndicator, Pressable, ScrollView } from "react-native";
+import { View, Text, ActivityIndicator, Pressable, ScrollView, Modal, Linking } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import Icon from "./src/components/Icon";
 import ShopScreen from "./src/screens/ShopScreen";
@@ -7,6 +7,9 @@ import CheckoutScreen from "./src/screens/CheckoutScreen";
 import OrderScreen from "./src/screens/OrderScreen";
 import { readSlug, loadShop, placeOrder, payOrder } from "./src/lib/shop";
 import DiscoveryScreen from "./src/screens/DiscoveryScreen";
+
+const VENDOR_APP = "https://mego-vendor.pages.dev";
+const RIDER_APP = "https://mego-rider.pages.dev";
 
 /**
  * Filet de securite : si un ecran plante, on affiche le message d'erreur
@@ -59,6 +62,7 @@ function ShopApp() {
   const [screen, setScreen] = useState("shop");
   const [cart, setCart] = useState({});
   const [orderId, setOrderId] = useState("");
+  const [welcome, setWelcome] = useState(false);
 
   const boot = useCallback(async () => {
     const s = readSlug();
@@ -83,9 +87,22 @@ function ShopApp() {
     boot();
   }, [boot]);
 
-  // CAS A (false) : vitrine privee, aucun acces vers le flux global / devenir vendeur / livreur.
-  // CAS B (true) : bouton discret vers la marketplace.
+  // CAS A (interrupteur desactive) : le client reste sur la page web de la boutique et paie, sans rien d'autre.
+  // CAS B (interrupteur active) : le client entre dans l'application : pop-up d'accueil + acces a la Decouverte.
   const marketplaceOpen = !!(shop && shop.vendor && shop.vendor.is_marketplace_visible === true);
+
+  useEffect(() => {
+    if (!marketplaceOpen) return;
+    try {
+      const key = "mego_welcome_" + slug;
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, "1");
+        setWelcome(true);
+      }
+    } catch (e) {
+      setWelcome(true);
+    }
+  }, [marketplaceOpen, slug]);
 
   const add = (p) => setCart((c) => ({ ...c, [p.id]: (c[p.id] || 0) + 1 }));
 
@@ -184,6 +201,43 @@ function ShopApp() {
           <Text className="text-[13px] font-bold text-white">Decouverte</Text>
         </Pressable>
       ) : null}
+
+      <Modal visible={welcome && marketplaceOpen} transparent animationType="fade" onRequestClose={() => setWelcome(false)}>
+        <View className="flex-1 items-center justify-center bg-black/50 px-6">
+          <View className="w-full rounded-3xl bg-white p-5">
+            <Text className="text-center text-[17px] font-bold text-ink">
+              Bienvenue chez {shop && shop.vendor ? shop.vendor.name : "nous"}
+            </Text>
+            <Text className="mt-2 text-center text-[13px] text-muted">
+              Commande ici, ou decouvre les produits des autres boutiques.
+            </Text>
+            <Pressable
+              onPress={() => {
+                setWelcome(false);
+                setScreen("discovery");
+              }}
+              className="mt-4 items-center rounded-2xl bg-primary py-3 active:opacity-80"
+            >
+              <Text className="text-[14px] font-bold text-white">Decouvrir les boutiques</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => Linking.openURL(VENDOR_APP).catch(() => {})}
+              className="mt-2 items-center rounded-2xl bg-chip py-3 active:opacity-80"
+            >
+              <Text className="text-[14px] font-semibold text-ink">Devenir vendeur</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => Linking.openURL(RIDER_APP).catch(() => {})}
+              className="mt-2 items-center rounded-2xl bg-chip py-3 active:opacity-80"
+            >
+              <Text className="text-[14px] font-semibold text-ink">Devenir livreur</Text>
+            </Pressable>
+            <Pressable onPress={() => setWelcome(false)} className="mt-3 items-center py-2 active:opacity-70">
+              <Text className="text-[13px] text-muted">Continuer ma commande</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
