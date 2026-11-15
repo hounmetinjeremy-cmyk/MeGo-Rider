@@ -3,6 +3,7 @@ import { View, ScrollView, RefreshControl } from "react-native";
 import AppHeader from "../components/AppHeader";
 import TopTabBar from "../components/TopTabBar";
 import OrderCard from "../components/OrderCard";
+import RiderTrack from "../components/RiderTrack";
 import EmptyState from "../components/EmptyState";
 import { TABS, groupByStatus } from "../lib/orders";
 
@@ -12,13 +13,14 @@ const EMPTY_MESSAGES = {
   "Livré": "Aucune commande livrée pour le moment !",
 };
 
-/** Commandes du vendeur (lecture seule) : onglets Nouvel Ordre / En traitement / Livré. */
+/** Commandes du vendeur : onglets Nouvel Ordre / En traitement / Livré, avec le suivi du livreur sous chaque commande en cours. */
 export default function OrdersScreen({ vendor, orders, onRefresh, onMenuPress }) {
   const [tab, setTab] = useState(TABS[0]);
   const [refreshing, setRefreshing] = useState(false);
 
   const grouped = useMemo(() => groupByStatus(orders), [orders]);
   const list = grouped[tab] || [];
+  const delivered = tab === TABS[2];
 
   const refresh = async () => {
     setRefreshing(true);
@@ -40,7 +42,12 @@ export default function OrdersScreen({ vendor, orders, onRefresh, onMenuPress })
         {list.length === 0 ? (
           <EmptyState icon="package" message={EMPTY_MESSAGES[tab]} />
         ) : (
-          list.map((order) => <OrderCard key={order.id} order={order} />)
+          list.map((order) => (
+            <View key={order.id}>
+              <OrderCard order={order} />
+              {!delivered ? <RiderTrack orderId={order.id} /> : null}
+            </View>
+          ))
         )}
       </ScrollView>
     </View>
