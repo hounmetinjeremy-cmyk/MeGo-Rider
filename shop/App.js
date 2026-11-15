@@ -11,6 +11,23 @@ import DiscoveryScreen from "./src/screens/DiscoveryScreen";
 const VENDOR_APP = "https://mego-vendor.pages.dev";
 const RIDER_APP = "https://mego-rider.pages.dev";
 
+// Position du client (pour que le livreur sache ou livrer) : demandee a la commande, 6 s maximum.
+function getPosition() {
+  return new Promise((resolve) => {
+    const none = { lat: null, lng: null };
+    try {
+      if (typeof navigator === "undefined" || !navigator.geolocation) return resolve(none);
+      navigator.geolocation.getCurrentPosition(
+        (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+        () => resolve(none),
+        { timeout: 6000, maximumAge: 60000 }
+      );
+    } catch (e) {
+      resolve(none);
+    }
+  });
+}
+
 /**
  * Filet de securite : si un ecran plante, on affiche le message d'erreur
  * au lieu d'une page blanche (indispensable sur mobile, ou la console est invisible).
@@ -117,7 +134,8 @@ function ShopApp() {
 
   const onPlaced = async ({ name, phone, address, note, zoneId }) => {
     const items = Object.keys(cart).map((id) => ({ id, qty: cart[id] }));
-    const res = await placeOrder({ slug, items, name, phone, address, lat: null, lng: null, note, zoneId });
+    const pos = await getPosition();
+    const res = await placeOrder({ slug, items, name, phone, address, lat: pos.lat, lng: pos.lng, note, zoneId });
     if (!res || res.ok === false) return res || { ok: false, error: "Commande impossible" };
     setOrderId(res.order_id);
     setCart({});
