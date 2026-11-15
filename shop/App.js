@@ -10,6 +10,36 @@ import DiscoveryScreen from "./src/screens/DiscoveryScreen";
 
 const VENDOR_APP = "https://mego-vendor.pages.dev";
 const RIDER_APP = "https://mego-rider.pages.dev";
+const API = "https://mprusmdpirucpcwqssfg.supabase.co";
+const KEY = "sb_publishable_OqgLY_ICZBtu1-C_yN_hCA_J4U2zluA";
+
+async function rpc(name, body) {
+  const r = await fetch(API + "/rest/v1/rpc/" + name, {
+    method: "POST",
+    headers: { apikey: KEY, Authorization: "Bearer " + KEY, "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  return r.json();
+}
+
+// Paiement reel via Chap Money (FedaPay). Les cles FedaPay restent chez Chap Money : MeGo n'a besoin que de l'adresse et de la cle publique du site.
+// Retourne { ok, paymentUrl } ou { ok:false, error }.
+async function startChapPayment(order, cfg) {
+  try {
+    const r = await fetch(cfg.url.replace(/\/+$/, "") + "/api/checkout/card", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Api-Key": cfg.key },
+      body: JSON.stringify({ amount: Number(order.total), description: "MeGo " + (order.code || "") }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.paymentUrl || !d.transactionId) return { ok: false, error: d.error || "Paiement indisponible" };
+    const a = await rpc("attach_payment", { p_order_id: order.order_id, p_ref: String(d.transactionId) });
+    if (!a || a.ok === false) return { ok: false, error: (a && a.error) || "Paiement non enregistre" };
+    return { ok: true, paymentUrl: d.paymentUrl };
+  } catch (e) {
+    return { ok: false, error: "Connexion au paiement impossible" };
+  }
+}
 
 // Position du client (pour que le livreur sache ou livrer) : demandee a la commande, 6 s maximum.
 function getPosition() {
@@ -80,6 +110,8 @@ function ShopApp() {
   const [cart, setCart] = useState({});
   const [orderId, setOrderId] = useState("");
   const [welcome, setWelcome] = useState(false);
+  const [payUrl, setPayUrl] = useState("");
+  const [payError, setPayError] = useState("");
 
   const boot = useCallback(async () => {
     const s = readSlug();
@@ -137,10 +169,35 @@ function ShopApp() {
     const pos = await getPosition();
     const res = await placeOrder({ slug, items, name, phone, address, lat: pos.lat, lng: pos.lng, note, zoneId });
     if (!res || res.ok === false) return res || { ok: false, error: "Commande impossible" };
-    setOrderId(res.order_id);
-    setCart({});
-    setScreen("order");
-    await payOrder(res.order_id);
+
+    setPayError("");
+    setPayUrl("");
+    let cfg = null;
+    try {
+      cfg = await rpc("get_payment_config");
+    } catch (e) {}
+
+    if (cfg && cfg.url && cfg.key && cfg.test !== true) {
+      // Paiement reel : on cree la transaction chez Chap Money, puis le client paie sur la page FedaPay.
+      const p = await startChapPayment(res, cfg);
+      setOrderId(res.order_id);
+      setCart({});
+      setScreen("order");
+      if (p.ok) {
+        setPayUrl(p.paymentUrl);
+        try {
+          if (typeof window !== "undefined") window.open(p.paymentUrl, "_blank");
+        } catch (e) {}
+      } else {
+        setPayError(p.error);
+      }
+    } else {
+      // Mode simulation (test_payments actif ou paiement non configure)
+      setOrderId(res.order_id);
+      setCart({});
+      setScreen("order");
+      await payOrder(res.order_id);
+    }
     return res;
   };
 
@@ -193,6 +250,26 @@ function ShopApp() {
   if (screen === "order") {
     return (
       <SafeAreaView className="flex-1 bg-surface">
+        {payUrl ? (
+          <View className="bg-amber-100 px-4 py-3">
+            <Text className="text-[13px] font-bold text-ink">Paiement en attente</Text>
+            <Text className="mt-0.5 text-[12px] text-muted">
+              Paie sur la page securisee. Cette page se met a jour toute seule des que le paiement est confirme.
+            </Text>
+            <Pressable
+              onPress={() => Linking.openURL(payUrl).catch(() => {})}
+              className="mt-2 items-center rounded-xl bg-primary py-2.5 active:opacity-80"
+            >
+              <Text className="text-[14px] font-bold text-white">Payer maintenant</Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {payError ? (
+          <View className="bg-red-100 px-4 py-3">
+            <Text className="text-[13px] font-bold text-red-700">Paiement impossible</Text>
+            <Text className="mt-0.5 text-[12px] text-red-700">{payError}. Recommence ta commande.</Text>
+          </View>
+        ) : null}
         <OrderScreen
           orderId={orderId}
           onBack={() => setScreen("shop")}
