@@ -1,8 +1,9 @@
 import React from "react";
-import { View, Text, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, Pressable, ActivityIndicator, Linking } from "react-native";
 import Icon from "./Icon";
 import colors from "../theme/colors";
 import { formatMoney, formatDate } from "../lib/orders";
+import { supabase } from "../lib/supabaseClient";
 
 const STATUS_STYLE = {
   NEW: { label: "Nouveau", bg: "bg-primary-soft", text: "text-primary" },
@@ -10,11 +11,35 @@ const STATUS_STYLE = {
   DELIVERED: { label: "Livré", bg: "bg-chip", text: "text-muted" },
 };
 
+/** Ouvre l'itinéraire (Google Maps) vers le vendeur (pickup) ou le client (delivery). */
+async function openRoute(orderId, target, fallbackText) {
+  let lat = null;
+  let lng = null;
+  try {
+    const { data } = await supabase
+      .from("orders")
+      .select("pickup_lat,pickup_lng,delivery_lat,delivery_lng")
+      .eq("id", orderId)
+      .single();
+    if (data) {
+      lat = target === "pickup" ? data.pickup_lat : data.delivery_lat;
+      lng = target === "pickup" ? data.pickup_lng : data.delivery_lng;
+    }
+  } catch (e) {
+    // on retombe sur l'adresse texte
+  }
+  const hasCoords = lat != null && lng != null;
+  if (!hasCoords && !fallbackText) return;
+  const dest = hasCoords ? lat + "," + lng : encodeURIComponent(fallbackText);
+  Linking.openURL("https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" + dest).catch(() => {});
+}
+
 /** Carte de commande : bloc blanc arrondi avec ombre légère. */
 export default function OrderCard({ order, onAccept, onDecline, onDeliver, busy }) {
   const style = STATUS_STYLE[order.status] || STATUS_STYLE.NEW;
   const created = order.createdAt || order.created_at;
   const offered = order.dispatch === "OFFERED" && !!onAccept;
+  const inProgress = order.status === "IN_PROGRESS";
 
   return (
     <View className="mb-4 rounded-xl bg-white p-4 shadow-sm">
@@ -49,6 +74,23 @@ export default function OrderCard({ order, onAccept, onDecline, onDeliver, busy 
           </Text>
         </View>
       </View>
+
+      {inProgress ? (
+        <View className="mt-3 flex-row">
+          <Pressable
+            onPress={() => openRoute(order.id, "pickup", order.pickup || order.vendor)}
+            className="mr-2 flex-1 items-center rounded-lg bg-primary-soft py-2.5 active:opacity-70"
+          >
+            <Text className="text-[12px] font-semibold text-primary">Aller chez le vendeur</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => openRoute(order.id, "delivery", order.delivery)}
+            className="flex-1 items-center rounded-lg bg-primary-soft py-2.5 active:opacity-70"
+          >
+            <Text className="text-[12px] font-semibold text-primary">Aller chez le client</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <View className="mt-3 flex-row items-center justify-between border-t border-line pt-3">
         <Text className="text-[15px] font-bold text-ink">

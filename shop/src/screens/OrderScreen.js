@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Linking } from "react-native";
 import Icon from "../components/Icon";
 import { money, getStatus, getOrderQr } from "../lib/shop";
 
@@ -12,6 +12,12 @@ const LABEL = {
   DELIVERED: "Livree",
   NO_RIDER: "Aucun livreur disponible",
 };
+
+function minutesAgo(iso) {
+  if (!iso) return null;
+  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  return m >= 0 ? m : null;
+}
 
 export default function OrderScreen({ orderId, onBack, onNew }) {
   const [st, setSt] = useState(null);
@@ -36,6 +42,14 @@ export default function OrderScreen({ orderId, onBack, onNew }) {
   const dispatch = st ? st.dispatch : null;
   const label = st ? LABEL[dispatch] || st.status || "En cours" : "Chargement";
   const done = dispatch === "DELIVERED";
+  const hasRider = st && st.rider_lat != null && st.rider_lng != null && !done;
+  const age = st ? minutesAgo(st.rider_updated_at) : null;
+
+  const followRider = () => {
+    Linking.openURL(
+      "https://www.google.com/maps/search/?api=1&query=" + st.rider_lat + "," + st.rider_lng
+    ).catch(() => {});
+  };
 
   return (
     <View className="flex-1 bg-surface">
@@ -71,6 +85,17 @@ export default function OrderScreen({ orderId, onBack, onNew }) {
               <Text className="text-[13px] font-semibold text-primary">{st.rider_phone}</Text>
             ) : null}
           </View>
+        ) : null}
+
+        {hasRider ? (
+          <Pressable onPress={followRider} className="mt-3 items-center rounded-2xl bg-primary py-3.5 active:opacity-80">
+            <Text className="text-[15px] font-bold text-white">Suivre mon livreur sur la carte</Text>
+            {age != null ? (
+              <Text className="mt-0.5 text-[11px] text-white">
+                Position mise a jour il y a {age} min
+              </Text>
+            ) : null}
+          </Pressable>
         ) : null}
 
         {qr && qr.qr_code && !done ? (
