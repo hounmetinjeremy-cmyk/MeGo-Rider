@@ -5,6 +5,7 @@ import EmptyState from "../components/EmptyState";
 import Icon from "../components/Icon";
 import { Card, SectionTitle, Badge } from "../components/Kit";
 import ProductFormModal from "../components/ProductFormModal";
+import MarketplaceToggle from "../components/MarketplaceToggle";
 import colors from "../theme/colors";
 import { listProducts, updateProduct, deleteProduct } from "../lib/db";
 
@@ -13,7 +14,7 @@ function money(value, currency) {
   return `${n.toLocaleString("fr-FR")} ${currency || "FCFA"}`;
 }
 
-/** Catalogue de la boutique : ajout avec photo, disponibilite, suppression. */
+/** Catalogue de la boutique : ajout avec photo, disponibilite, suppression, et interrupteur du lien partage. */
 export default function ProductsScreen({ vendor, onMenuPress, onBack }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -103,6 +104,11 @@ export default function ProductsScreen({ vendor, onMenuPress, onBack }) {
           />
         }
       >
+        <MarketplaceToggle
+          vendorId={vendor ? vendor.id : null}
+          initialValue={!!(vendor && vendor.is_marketplace_visible)}
+        />
+
         <Pressable
           onPress={openNew}
           className="mb-4 flex-row items-center justify-center rounded-xl bg-primary py-3.5 active:opacity-80"

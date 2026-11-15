@@ -3,8 +3,11 @@ import { View, Text, Switch, ActivityIndicator, StyleSheet } from 'react-native'
 import { supabase } from '../lib/supabaseClient';
 
 /**
- * CAS A : la boutique reste privée, accessible seulement par son lien.
- * CAS B : la boutique apparaît dans le flux global et l'onglet Découverte.
+ * Interrupteur "Ouvrir mon lien dans l'application" (is_marketplace_visible), affiché dans l'onglet Produits.
+ * - Tous les produits publiés apparaissent TOUJOURS dans l'Accueil, quel que soit cet interrupteur.
+ * - ACTIVÉ : un client qui ouvre le lien partagé (Facebook, WhatsApp) entre dans l'application, dans la boutique.
+ * - DÉSACTIVÉ : le client reste sur la page web du vendeur et paie, sans être redirigé vers l'application.
+ * Sans vendorId (ancien usage dans Profil) le composant n'affiche rien.
  */
 export default function MarketplaceToggle({ vendorId, initialValue = false, onChange }) {
   const [visible, setVisible] = useState(!!initialValue);
@@ -12,11 +15,24 @@ export default function MarketplaceToggle({ vendorId, initialValue = false, onCh
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    setVisible(!!initialValue);
-  }, [initialValue]);
+    if (!vendorId) return;
+    let alive = true;
+    supabase
+      .from('vendors')
+      .select('is_marketplace_visible')
+      .eq('id', vendorId)
+      .single()
+      .then(({ data }) => {
+        if (alive && data) setVisible(!!data.is_marketplace_visible);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [vendorId]);
+
+  if (!vendorId) return null;
 
   async function toggle(next) {
-    if (!vendorId) return;
     setLoading(true);
     setError(null);
     const previous = visible;
@@ -39,17 +55,17 @@ export default function MarketplaceToggle({ vendorId, initialValue = false, onCh
     <View style={styles.card}>
       <View style={styles.row}>
         <View style={styles.texts}>
-          <Text style={styles.title}>Afficher dans la Découverte</Text>
+          <Text style={styles.title}>Ouvrir mon lien dans l'application</Text>
           <Text style={styles.subtitle}>
             {visible
-              ? 'Votre boutique est visible par tous les clients (flux global).'
-              : 'Vitrine privée : seule votre lien partagé donne accès à la boutique.'}
+              ? "Activé : un client qui ouvre ton lien (Facebook, WhatsApp) entre directement dans l'application, dans ta boutique."
+              : "Désactivé : un client qui ouvre ton lien reste sur la page web pour payer, sans aller dans l'application. Tes produits restent visibles dans l'Accueil."}
           </Text>
         </View>
         {loading ? (
           <ActivityIndicator />
         ) : (
-          <Switch value={visible} onValueChange={toggle} disabled={!vendorId} />
+          <Switch value={visible} onValueChange={toggle} />
         )}
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -62,8 +78,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     padding: 14,
-    marginHorizontal: 16,
-    marginTop: 12,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
