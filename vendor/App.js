@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Modal, Pressable, Animated, Easing, Dimensions } from "react-native";
+import { View, Text, Modal, Pressable, Animated, Easing, Dimensions } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import AuthGate from "./src/components/AuthGate";
 import BottomNavBar from "./src/components/BottomNavBar";
 import DrawerMenu from "./src/screens/DrawerMenu";
 import DashboardScreen from "./src/screens/DashboardScreen";
@@ -17,17 +18,16 @@ const DRAWER_WIDTH = Math.min(300, Dimensions.get("window").width * 0.82);
 const MAIN_TABS = ["marketplace", "home", "orders", "products", "earnings"];
 
 /**
- * Application vendeur MeGo Vendor : même structure que l'application livreur
- * (en-tête, contenu, barre d'onglets en bas, menu latéral). Seules les fonctions changent.
- * L'application s'ouvre sur l'Accueil (marketplace). Le profil se trouve dans le menu latéral.
+ * Application vendeur MeGo Vendor (connecte : vendorId vient du compte).
+ * L'application s'ouvre sur l'Accueil (marketplace). Le profil se trouve dans le menu lateral.
  */
-export default function App() {
+function VendorApp({ vendorId, onLogout }) {
   const [activeNav, setActiveNav] = useState("marketplace");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const slide = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const fade = useRef(new Animated.Value(0)).current;
   const lastTab = useRef("marketplace");
-  const { vendor, orders, loading, error, reload, toggleOpen } = useVendor();
+  const { vendor, orders, loading, error, reload, toggleOpen } = useVendor(vendorId);
 
   const openDrawer = useCallback(() => setDrawerOpen(true), []);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
@@ -46,7 +46,18 @@ export default function App() {
     if (MAIN_TABS.includes(activeNav)) lastTab.current = activeNav;
   }, [activeNav]);
 
-  const handleNav = useCallback((key) => { setActiveNav(key); closeDrawer(); }, [closeDrawer]);
+  const handleNav = useCallback(
+    (key) => {
+      if (key === "logout") {
+        closeDrawer();
+        if (onLogout) onLogout();
+        return;
+      }
+      setActiveNav(key);
+      closeDrawer();
+    },
+    [closeDrawer, onLogout]
+  );
   const goBack = useCallback(() => setActiveNav(lastTab.current), []);
 
   const renderScreen = () => {
@@ -80,6 +91,12 @@ export default function App() {
           <View className="flex-1 flex-row">
             <Animated.View style={{ width: DRAWER_WIDTH, transform: [{ translateX: slide }] }} className="h-full bg-white">
               <DrawerMenu vendor={vendor} activeKey={activeNav} onNavigate={handleNav} onClose={closeDrawer} onToggleOpen={toggleOpen} />
+              <Pressable
+                onPress={() => handleNav("logout")}
+                style={{ position: "absolute", left: 16, right: 16, bottom: 16, backgroundColor: "#f0efe9", borderRadius: 12, paddingVertical: 12, alignItems: "center" }}
+              >
+                <Text style={{ fontWeight: "700", color: "#c0392b" }}>Se deconnecter</Text>
+              </Pressable>
             </Animated.View>
             <Animated.View style={{ opacity: fade }} className="flex-1 bg-black/40">
               <Pressable className="flex-1" onPress={closeDrawer} />
@@ -89,4 +106,8 @@ export default function App() {
       </SafeAreaView>
     </SafeAreaProvider>
   );
+}
+
+export default function App() {
+  return <AuthGate kind="vendor">{(id, logout) => <VendorApp vendorId={id} onLogout={logout} />}</AuthGate>;
 }

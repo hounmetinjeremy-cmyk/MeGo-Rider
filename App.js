@@ -3,7 +3,7 @@ import { View, Modal, Pressable, Animated, Easing, Dimensions } from "react-nati
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
-import AppHeader from "./src/components/AppHeader";
+import AuthGate from "./src/components/AuthGate";
 import BottomNavBar from "./src/components/BottomNavBar";
 import DrawerMenu from "./src/screens/DrawerMenu";
 import OrdersScreen from "./src/screens/OrdersScreen";
@@ -26,15 +26,10 @@ const DRAWER_WIDTH = Math.min(Dimensions.get("window").width * 0.82, 340);
 const MAIN_TABS = ["marketplace", "home", "wallet", "earnings"];
 
 /**
- * Application livreur MeGo Rider.
- *
- * État global :
- * - activeNav : onglet principal (marketplace, home, wallet, earnings) ou écran du drawer
- *   (profile, language, vehicle, schedule, banking, help, about, privacy, product)
- * - drawerOpen : ouverture du menu latéral (le profil s'y trouve)
- * L'application s'ouvre sur l'Accueil (marketplace).
+ * Application livreur MeGo Rider (connecte : riderId vient du compte).
+ * L'application s'ouvre sur l'Accueil (marketplace). Le profil se trouve dans le menu lateral.
  */
-export default function App() {
+function RiderApp({ riderId: accountRiderId, onLogout }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeNav, setActiveNav] = useState("marketplace");
   const lastTab = useRef("marketplace");
@@ -43,7 +38,7 @@ export default function App() {
     rider,
     reload: reloadRider,
     setAvailability,
-  } = useRider();
+  } = useRider(accountRiderId);
   const {
     byTab,
     loading,
@@ -85,7 +80,7 @@ export default function App() {
       try {
         await setAvailability(next);
       } catch (e) {
-        // l'état est déjà revenu en arrière dans le hook
+        // l'etat est deja revenu en arriere dans le hook
       }
     },
     [setAvailability]
@@ -95,33 +90,26 @@ export default function App() {
     await Promise.all([reloadRider(), refresh()]);
   }, [reloadRider, refresh]);
 
+  const handleLogout = useCallback(() => {
+    closeDrawer();
+    if (onLogout) onLogout();
+  }, [closeDrawer, onLogout]);
+
   const handleMenuSelect = useCallback(
     (key) => {
       if (key === "logout") {
-        setActiveNav("home");
-        closeDrawer();
+        handleLogout();
         return;
       }
-      if (key === "home") {
-        setActiveNav("home");
-      } else if (key === "profile") {
-        setActiveNav("profile");
-      } else {
-        setActiveNav(key);
-      }
+      setActiveNav(key);
       closeDrawer();
     },
-    [closeDrawer]
+    [closeDrawer, handleLogout]
   );
-
-  const handleLogout = useCallback(() => {
-    setActiveNav("home");
-    closeDrawer();
-  }, [closeDrawer]);
 
   const goBack = useCallback(() => setActiveNav(lastTab.current), []);
 
-  // Mémorise le dernier onglet principal pour le bouton retour.
+  // Memorise le dernier onglet principal pour le bouton retour.
   useEffect(() => {
     if (MAIN_TABS.includes(activeNav)) lastTab.current = activeNav;
   }, [activeNav]);
@@ -226,4 +214,8 @@ export default function App() {
       </SafeAreaView>
     </SafeAreaProvider>
   );
+}
+
+export default function App() {
+  return <AuthGate kind="rider">{(id, logout) => <RiderApp riderId={id} onLogout={logout} />}</AuthGate>;
 }
