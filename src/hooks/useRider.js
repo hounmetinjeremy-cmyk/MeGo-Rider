@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabaseClient";
 import useRiderLocation from "./useRiderLocation";
 
 const RIDER_COLUMNS =
-  "id, full_name, name, rider_code, phone, is_available, vehicle_type, vehicle, wallet_balance, total_earnings, created_at";
+  "id, full_name, name, rider_code, phone, is_available, vehicle_type, vehicle, wallet_balance, pending_balance, total_earnings, created_at";
 
 export function normalizeRider(row) {
   if (!row) return null;
@@ -15,17 +15,16 @@ export function normalizeRider(row) {
     available: !!row.is_available,
     vehicle: row.vehicle_type || row.vehicle || "Moto",
     wallet: Number(row.wallet_balance || 0),
+    pending: Number(row.pending_balance || 0),
     earnings: Number(row.total_earnings || 0),
   };
 }
 
 /**
- * Profil du livreur connecté.
- * Sans écran de connexion, on prend le livreur EXPO_PUBLIC_RIDER_ID
- * s'il est défini, sinon le premier de la table riders.
- * Tant que le livreur est « Disponible », sa position est envoyée toutes les 30 s.
+ * Profil du livreur connecte (riderId vient de la session AuthGate).
+ * Tant que le livreur est "Disponible", sa position est envoyee toutes les 30 s.
  */
-export default function useRider() {
+export default function useRider(riderId) {
   const [rider, setRider] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -33,7 +32,7 @@ export default function useRider() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const preferred = process.env.EXPO_PUBLIC_RIDER_ID;
+      const preferred = riderId || process.env.EXPO_PUBLIC_RIDER_ID;
       let query = supabase.from("riders").select(RIDER_COLUMNS).limit(1);
       if (preferred) {
         query = supabase.from("riders").select(RIDER_COLUMNS).eq("id", preferred).limit(1);
@@ -46,7 +45,7 @@ export default function useRider() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [riderId]);
 
   useEffect(() => {
     load();
@@ -54,7 +53,7 @@ export default function useRider() {
 
   useRiderLocation(rider);
 
-  /** Bascule le switch Disponibilité -> riders.is_available */
+  /** Bascule le switch Disponibilite -> riders.is_available */
   const setAvailability = useCallback(
     async (value) => {
       if (!rider) return;
