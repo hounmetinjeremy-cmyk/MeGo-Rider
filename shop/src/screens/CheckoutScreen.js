@@ -1,7 +1,25 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from "react-native";
 import Icon from "../components/Icon";
 import { money } from "../lib/shop";
+
+// Defini HORS de l'ecran : un composant declare dans un autre est recree a chaque frappe,
+// ce qui fait perdre le focus au champ et fermer le clavier.
+function Field({ label, value, set, placeholder, keyboard, multiline }) {
+  return (
+    <View className="mb-3">
+      <Text className="mb-1 text-[12px] font-semibold text-muted">{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={set}
+        placeholder={placeholder}
+        keyboardType={keyboard || "default"}
+        multiline={!!multiline}
+        className="rounded-xl border border-line bg-white px-3 py-2.5 text-[14px] text-ink"
+      />
+    </View>
+  );
+}
 
 export default function CheckoutScreen({ shop, cart, onBack, onPlaced }) {
   const [name, setName] = useState("");
@@ -15,10 +33,19 @@ export default function CheckoutScreen({ shop, cart, onBack, onPlaced }) {
   const products = shop.products || [];
   const lines = products.filter((p) => cart[p.id]);
   const subtotal = lines.reduce((a, p) => a + cart[p.id] * Number(p.price || 0), 0);
-  const fee = Number(shop.delivery_fee || 0);
+  const zone = zones.find((z) => z.id === zoneId);
+  const fee = zone ? Number(zone.fee || 0) : Number(shop.delivery_fee || 0);
   const total = subtotal + fee;
 
+  useEffect(() => {
+    if (!zoneId && zones.length === 1) setZoneId(zones[0].id);
+  }, [zones.length]);
+
   const submit = async () => {
+    if (zones.length > 0 && !zoneId) {
+      setErr("Choisis ta zone de livraison (boutons en haut de la section Livraison).");
+      return;
+    }
     if (!name.trim() || !phone.trim() || !address.trim()) {
       setErr("Nom, telephone et adresse sont obligatoires.");
       return;
@@ -30,20 +57,6 @@ export default function CheckoutScreen({ shop, cart, onBack, onPlaced }) {
     if (!res || res.ok === false) setErr((res && res.error) || "Commande impossible");
   };
 
-  const Field = ({ label, value, set, placeholder, keyboard, multiline }) => (
-    <View className="mb-3">
-      <Text className="mb-1 text-[12px] font-semibold text-muted">{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={set}
-        placeholder={placeholder}
-        keyboardType={keyboard || "default"}
-        multiline={!!multiline}
-        className="rounded-xl border border-line bg-white px-3 py-2.5 text-[14px] text-ink"
-      />
-    </View>
-  );
-
   return (
     <View className="flex-1 bg-surface">
       <View className="flex-row items-center bg-navy px-4 py-4">
@@ -52,7 +65,7 @@ export default function CheckoutScreen({ shop, cart, onBack, onPlaced }) {
         </Pressable>
         <Text className="text-[16px] font-bold text-white">Ma commande</Text>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         <View className="mb-3 rounded-2xl bg-white p-4">
           <Text className="mb-2 text-[13px] font-bold text-ink">Recapitulatif</Text>
           {lines.map((p) => (
@@ -81,7 +94,7 @@ export default function CheckoutScreen({ shop, cart, onBack, onPlaced }) {
           <Text className="mb-2 text-[13px] font-bold text-ink">Livraison</Text>
           {zones.length > 0 && (
             <View className="mb-3">
-              <Text className="mb-2 text-[12px] font-bold text-muted">Zone de livraison</Text>
+              <Text className="mb-2 text-[12px] font-bold text-muted">Zone de livraison (obligatoire)</Text>
               <View className="flex-row flex-wrap">
                 {zones.map((z) => (
                   <Pressable key={z.id} onPress={() => setZoneId(z.id)} className={"mb-2 mr-2 rounded-full px-3 py-1.5 " + (zoneId === z.id ? "bg-navy" : "bg-slate-100")}>
