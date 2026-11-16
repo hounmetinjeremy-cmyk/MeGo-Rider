@@ -6,6 +6,7 @@ import Icon from "../components/Icon";
 import { Card, SectionTitle, Badge } from "../components/Kit";
 import ProductFormModal from "../components/ProductFormModal";
 import MarketplaceToggle from "../components/MarketplaceToggle";
+import AiAssistantCard from "../components/AiAssistantCard";
 import colors from "../theme/colors";
 import { listProducts, updateProduct, deleteProduct } from "../lib/db";
 
@@ -14,7 +15,7 @@ function money(value, currency) {
   return `${n.toLocaleString("fr-FR")} ${currency || "FCFA"}`;
 }
 
-/** Catalogue de la boutique : ajout avec photo, disponibilite, suppression, et interrupteur du lien partage. */
+/** Catalogue de la boutique : ajout avec photo, disponibilite, suppression, interrupteur du lien partage et assistant IA. */
 export default function ProductsScreen({ vendor, onMenuPress, onBack }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -108,6 +109,8 @@ export default function ProductsScreen({ vendor, onMenuPress, onBack }) {
           vendorId={vendor ? vendor.id : null}
           initialValue={!!(vendor && vendor.is_marketplace_visible)}
         />
+
+        <AiAssistantCard />
 
         <Pressable
           onPress={openNew}

@@ -47,6 +47,46 @@ export async function fedapay(env, path, body) {
   return data;
 }
 
+// Les 3 etapes FedaPay (creation, token, envoi de la demande sur le telephone). Retourne l'id de la transaction.
+export async function mobilePush(env, { amount, description, phone, country, operator }) {
+  let tx;
+  try {
+    const created = await fedapay(env, "/transactions", {
+      description,
+      amount,
+      currency: { iso: "XOF" },
+      customer: {
+        firstname: env.FEDAPAY_CUSTOMER_FIRSTNAME || "Client",
+        lastname: env.FEDAPAY_CUSTOMER_LASTNAME || "MeGo",
+        email: env.FEDAPAY_CUSTOMER_EMAIL || "hounmetinjeremy@gmail.com",
+        phone_number: { number: phone, country },
+      },
+      mode: operator,
+    });
+    tx = created["v1/transaction"] ?? created.transaction ?? created;
+  } catch (e) {
+    throw new Error(`[etape 1 - creation] ${e.message}`);
+  }
+  const txId = tx?.id;
+  if (!txId) throw new Error("ID transaction FedaPay introuvable");
+
+  let token;
+  try {
+    const t = await fedapay(env, `/transactions/${txId}/token`, {});
+    token = typeof t.token === "string" ? t.token : t.token?.token;
+    if (!token) throw new Error("Token FedaPay introuvable");
+  } catch (e) {
+    throw new Error(`[etape 2 - token] ${e.message}`);
+  }
+
+  try {
+    await fedapay(env, `/${operator}`, { token, phone_number: { number: phone, country } });
+  } catch (e) {
+    throw new Error(`[etape 3 - envoi telephone] ${e.message}`);
+  }
+  return txId;
+}
+
 export const sbHeaders = (env) => ({
   apikey: env.SUPABASE_SERVICE_ROLE_KEY,
   Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
