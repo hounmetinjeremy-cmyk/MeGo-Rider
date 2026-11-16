@@ -6,6 +6,7 @@ import ShopScreen from "./src/screens/ShopScreen";
 import CheckoutScreen from "./src/screens/CheckoutScreen";
 import OrderScreen from "./src/screens/OrderScreen";
 import PayScreen from "./src/screens/PayScreen";
+import ChatWidget from "./src/components/ChatWidget";
 import { readSlug, loadShop, placeOrder, payOrder } from "./src/lib/shop";
 import DiscoveryScreen from "./src/screens/DiscoveryScreen";
 
@@ -23,13 +24,13 @@ async function rpc(name, body) {
   return r.json();
 }
 
-// Paiement Mobile Money FedaPay DANS l'application : la fonction serveur "fedapay-checkout" cree la transaction (le montant vient de la base)
-// et envoie la demande sur le telephone du client. Les cles FedaPay ne sont jamais dans l'application.
-async function startMobilePayment(orderId, { country, operator, phone }) {
+// Paiement Mobile Money FedaPay DANS l'application : le serveur MeGo (Fly.io, route /checkout) cree la transaction
+// (le montant vient de la base) et envoie la demande sur le telephone du client. Les cles FedaPay restent dans les secrets Fly.
+async function startMobilePayment(serverUrl, orderId, { country, operator, phone }) {
   try {
-    const r = await fetch(API + "/functions/v1/fedapay-checkout", {
+    const r = await fetch(serverUrl.replace(/\/+$/, "") + "/checkout", {
       method: "POST",
-      headers: { apikey: KEY, Authorization: "Bearer " + KEY, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ order_id: orderId, country, operator, phone }),
     });
     const d = await r.json();
@@ -112,6 +113,8 @@ function ShopApp() {
   const [payOrderInfo, setPayOrderInfo] = useState(null);
   const [sandbox, setSandbox] = useState(false);
   const [payHint, setPayHint] = useState(false);
+  const [serverUrl, setServerUrl] = useState("");
+  const [chatOn, setChatOn] = useState(false);
 
   const boot = useCallback(async () => {
     const s = readSlug();
@@ -130,6 +133,11 @@ function ShopApp() {
     }
     setError("");
     setShop(data);
+    try {
+      const [cs, cfg] = await Promise.all([rpc("get_chat_status", { p_slug: s }), rpc("get_payment_config")]);
+      setChatOn(!!(cs && cs.enabled));
+      if (cfg && cfg.server) setServerUrl(cfg.server);
+    } catch (e) {}
   }, []);
 
   useEffect(() => {
@@ -178,8 +186,9 @@ function ShopApp() {
 
     setOrderId(res.order_id);
     setCart({});
-    if (cfg && cfg.provider === "fedapay" && cfg.test !== true) {
+    if (cfg && cfg.provider === "fedapay" && cfg.test !== true && cfg.server) {
       // Paiement reel : ecran pays / operateur / numero, puis validation sur le telephone
+      setServerUrl(cfg.server);
       setSandbox(cfg.sandbox === true);
       setPayOrderInfo({ order_id: res.order_id, total: res.total, code: res.code });
       setScreen("pay");
@@ -192,7 +201,7 @@ function ShopApp() {
   };
 
   const onPay = async (choice) => {
-    const r = await startMobilePayment(payOrderInfo.order_id, choice);
+    const r = await startMobilePayment(serverUrl, payOrderInfo.order_id, choice);
     if (r.ok) {
       setPayHint(true);
       setScreen("order");
@@ -283,6 +292,7 @@ function ShopApp() {
         remove={remove}
         onCheckout={() => setScreen("checkout")}
       />
+      {chatOn && serverUrl ? <ChatWidget slug={slug} serverUrl={serverUrl} /> : null}
       {marketplaceOpen ? (
         <Pressable
           onPress={() => setScreen("discovery")}
