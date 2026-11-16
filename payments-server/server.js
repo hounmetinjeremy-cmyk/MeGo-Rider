@@ -1,9 +1,10 @@
 import http from "node:http";
 import crypto from "node:crypto";
+import { handleChat } from "./chat.js";
 
-// Serveur de paiement MeGo (Fly.io) : FedaPay Mobile Money dans l'application, meme logique que Chap-money.
+// Serveur MeGo (Fly.io) : paiement FedaPay Mobile Money dans l'application (meme logique que Chap-money) + assistant IA des boutiques.
 // Secrets Fly requis : FEDAPAY_SECRET_KEY, FEDAPAY_MODE (sandbox | live), FEDAPAY_WEBHOOK_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
-// Facultatifs : FEDAPAY_CUSTOMER_EMAIL, FEDAPAY_CUSTOMER_FIRSTNAME, FEDAPAY_CUSTOMER_LASTNAME
+// Facultatifs : FEDAPAY_CUSTOMER_EMAIL, FEDAPAY_CUSTOMER_FIRSTNAME, FEDAPAY_CUSTOMER_LASTNAME, OLLAMA_URL
 const env = process.env;
 const PORT = Number(env.PORT || 8080);
 const LIVE = (env.FEDAPAY_MODE || "sandbox") === "live";
@@ -25,8 +26,11 @@ const ALLOWED = {
   gn: ["mtn_open_gn", "momo_test"],
 };
 
-for (const k of ["FEDAPAY_SECRET_KEY", "FEDAPAY_WEBHOOK_SECRET", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) {
+for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) {
   if (!env[k]) console.warn(`[config] secret manquant : ${k}`);
+}
+for (const k of ["FEDAPAY_SECRET_KEY", "FEDAPAY_WEBHOOK_SECRET"]) {
+  if (!env[k]) console.warn(`[config] secret paiement manquant : ${k}`);
 }
 
 function send(res, status, data) {
@@ -215,10 +219,20 @@ http
       if (req.method === "GET" && (pathname === "/health" || pathname === "/")) return send(res, 200, { status: "ok", mode: LIVE ? "live" : "sandbox" });
       if (req.method === "POST" && pathname === "/checkout") return await checkout(req, res);
       if (req.method === "POST" && pathname === "/webhook") return await webhook(req, res);
+      if (req.method === "POST" && pathname === "/chat") {
+        let body = {};
+        try {
+          body = JSON.parse((await readBody(req)) || "{}");
+        } catch {
+          return send(res, 400, { error: "JSON invalide" });
+        }
+        const ip = String(req.headers["fly-client-ip"] || req.socket.remoteAddress || "?");
+        return await handleChat({ body, ip, env, sbHeaders, sbUrl, send, res });
+      }
       return send(res, 404, { error: "Route inconnue" });
     } catch (e) {
       console.error("[erreur]", e);
       return send(res, 500, { error: e instanceof Error ? e.message : "Erreur serveur" });
     }
   })
-  .listen(PORT, "0.0.0.0", () => console.log(`MeGo payments sur le port ${PORT} (${LIVE ? "live" : "sandbox"})`));
+  .listen(PORT, "0.0.0.0", () => console.log(`MeGo serveur sur le port ${PORT} (${LIVE ? "live" : "sandbox"})`));

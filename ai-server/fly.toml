@@ -1,0 +1,14 @@
+app = "plateforme-ia-backend"
+primary_region = "cdg"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# Volontairement SANS [http_service] : le serveur d'IA n'est PAS public.
+# Seul le serveur Node de MeGo l'appelle, via le reseau prive Fly : http://plateforme-ia-backend.internal:11434
+# (sinon n'importe qui sur Internet pourrait utiliser ton CPU gratuitement)
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "2gb"
