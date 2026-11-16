@@ -22,19 +22,17 @@ async function rpc(name, body) {
   return r.json();
 }
 
-// Paiement reel via Chap Money (FedaPay). Les cles FedaPay restent chez Chap Money : MeGo n'a besoin que de l'adresse et de la cle publique du site.
-// Retourne { ok, paymentUrl } ou { ok:false, error }.
-async function startChapPayment(order, cfg) {
+// Paiement reel FedaPay : la fonction serveur "fedapay-checkout" cree la transaction (le montant vient de la base, pas du navigateur)
+// et renvoie l'adresse de la page de paiement FedaPay. Les cles FedaPay ne sont jamais dans l'application.
+async function startFedaPay(orderId) {
   try {
-    const r = await fetch(cfg.url.replace(/\/+$/, "") + "/api/checkout/card", {
+    const r = await fetch(API + "/functions/v1/fedapay-checkout", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Api-Key": cfg.key },
-      body: JSON.stringify({ amount: Number(order.total), description: "MeGo " + (order.code || "") }),
+      headers: { apikey: KEY, Authorization: "Bearer " + KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ order_id: orderId }),
     });
     const d = await r.json();
-    if (!r.ok || !d.paymentUrl || !d.transactionId) return { ok: false, error: d.error || "Paiement indisponible" };
-    const a = await rpc("attach_payment", { p_order_id: order.order_id, p_ref: String(d.transactionId) });
-    if (!a || a.ok === false) return { ok: false, error: (a && a.error) || "Paiement non enregistre" };
+    if (!r.ok || !d.paymentUrl) return { ok: false, error: d.error || "Paiement indisponible" };
     return { ok: true, paymentUrl: d.paymentUrl };
   } catch (e) {
     return { ok: false, error: "Connexion au paiement impossible" };
@@ -177,9 +175,8 @@ function ShopApp() {
       cfg = await rpc("get_payment_config");
     } catch (e) {}
 
-    if (cfg && cfg.url && cfg.key && cfg.test !== true) {
-      // Paiement reel : on cree la transaction chez Chap Money, puis le client paie sur la page FedaPay.
-      const p = await startChapPayment(res, cfg);
+    if (cfg && cfg.provider === "fedapay" && cfg.test !== true) {
+      const p = await startFedaPay(res.order_id);
       setOrderId(res.order_id);
       setCart({});
       setScreen("order");
@@ -254,7 +251,7 @@ function ShopApp() {
           <View className="bg-amber-100 px-4 py-3">
             <Text className="text-[13px] font-bold text-ink">Paiement en attente</Text>
             <Text className="mt-0.5 text-[12px] text-muted">
-              Paie sur la page securisee. Cette page se met a jour toute seule des que le paiement est confirme.
+              Paie sur la page securisee FedaPay. Cette page se met a jour toute seule des que le paiement est confirme.
             </Text>
             <Pressable
               onPress={() => Linking.openURL(payUrl).catch(() => {})}
