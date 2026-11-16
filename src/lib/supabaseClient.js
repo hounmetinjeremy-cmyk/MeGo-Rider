@@ -8,12 +8,26 @@ const SUPABASE_URL =
 const SUPABASE_ANON_KEY =
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_OqgLY_ICZBtu1-C_yN_hCA_J4U2zluA";
 
+// Chaque requete porte le jeton de session du livreur (en-tete x-mego-token) :
+// la base ne renvoie que SES donnees (ses commandes, son profil, ses retraits...).
+const TOKEN_KEY = "mego_session_rider";
+function fetchWithSession(input, init) {
+  let token = null;
+  try {
+    token = localStorage.getItem(TOKEN_KEY);
+  } catch (e) {}
+  const headers = new Headers((init && init.headers) || (typeof input !== "string" && input && input.headers) || {});
+  if (token) headers.set("x-mego-token", token);
+  return fetch(input, { ...(init || {}), headers });
+}
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false,
   },
+  global: { fetch: fetchWithSession },
   realtime: {
     params: { eventsPerSecond: 5 },
   },

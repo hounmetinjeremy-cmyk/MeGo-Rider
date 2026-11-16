@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { View, Text } from "react-native";
-import { Pressable } from "react-native";
+import { View, Text, Pressable } from "react-native";
 
-// Bandeau des soldes (livreur), visible sur tous les ecrans :
-// Disponible (retirable), En attente (bloque jusqu'a la validation du code client) et Garantie (caution exigee pour recevoir des courses).
+// Bandeau des soldes, visible sur tous les ecrans :
+// Disponible (retirable), En attente (bloque jusqu'a la validation du code client) et, pour le livreur, Garantie (caution exigee pour recevoir des courses).
 const API = "https://mprusmdpirucpcwqssfg.supabase.co";
 const KEY = "sb_publishable_OqgLY_ICZBtu1-C_yN_hCA_J4U2zluA";
 const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " F";
-const headers = { apikey: KEY, Authorization: "Bearer " + KEY, "Content-Type": "application/json" };
+const base = { apikey: KEY, Authorization: "Bearer " + KEY, "Content-Type": "application/json" };
 
 export default function BalanceStrip({ kind }) {
   const [b, setB] = useState(null);
@@ -23,14 +22,14 @@ export default function BalanceStrip({ kind }) {
         const t = localStorage.getItem("mego_session_" + kind);
         if (!t) return;
         if (!owner) {
-          const r = await fetch(API + "/rest/v1/rpc/session_info", { method: "POST", headers, body: JSON.stringify({ p_token: t }) });
+          const r = await fetch(API + "/rest/v1/rpc/session_info", { method: "POST", headers: base, body: JSON.stringify({ p_token: t }) });
           const s = await r.json();
           if (!s || !s.ok) return;
           owner = s.owner_id;
         }
         const table = kind === "vendor" ? "vendors" : "riders";
         const cols = kind === "vendor" ? "wallet_balance,pending_balance" : "wallet_balance,pending_balance,guarantee_balance";
-        const r2 = await fetch(API + "/rest/v1/" + table + "?id=eq." + owner + "&select=" + cols, { headers });
+        const r2 = await fetch(API + "/rest/v1/" + table + "?id=eq." + owner + "&select=" + cols, { headers: { ...base, "x-mego-token": t } });
         const d = await r2.json();
         if (alive && Array.isArray(d) && d[0]) setB(d[0]);
       } catch (e) {}
@@ -45,7 +44,7 @@ export default function BalanceStrip({ kind }) {
 
   useEffect(() => {
     if (kind !== "rider") return;
-    fetch(API + "/rest/v1/rpc/get_payment_config", { method: "POST", headers, body: "{}" })
+    fetch(API + "/rest/v1/rpc/get_payment_config", { method: "POST", headers: base, body: "{}" })
       .then((r) => r.json())
       .then((c) => setTestMode(!!(c && c.test)))
       .catch(() => {});
@@ -55,7 +54,7 @@ export default function BalanceStrip({ kind }) {
     setMsg("");
     try {
       const t = localStorage.getItem("mego_session_rider");
-      const r = await fetch(API + "/rest/v1/rpc/test_topup_guarantee", { method: "POST", headers, body: JSON.stringify({ p_token: t, p_amount: 20000 }) });
+      const r = await fetch(API + "/rest/v1/rpc/test_topup_guarantee", { method: "POST", headers: base, body: JSON.stringify({ p_token: t, p_amount: 20000 }) });
       const d = await r.json();
       setMsg(d && d.ok ? "+20 000 F de garantie (test)" : (d && d.error) || "Echec");
       setTick((x) => x + 1);
