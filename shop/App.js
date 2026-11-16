@@ -5,6 +5,7 @@ import Icon from "./src/components/Icon";
 import ShopScreen from "./src/screens/ShopScreen";
 import CheckoutScreen from "./src/screens/CheckoutScreen";
 import OrderScreen from "./src/screens/OrderScreen";
+import PayScreen from "./src/screens/PayScreen";
 import { readSlug, loadShop, placeOrder, payOrder } from "./src/lib/shop";
 import DiscoveryScreen from "./src/screens/DiscoveryScreen";
 
@@ -22,18 +23,18 @@ async function rpc(name, body) {
   return r.json();
 }
 
-// Paiement reel FedaPay : la fonction serveur "fedapay-checkout" cree la transaction (le montant vient de la base, pas du navigateur)
-// et renvoie l'adresse de la page de paiement FedaPay. Les cles FedaPay ne sont jamais dans l'application.
-async function startFedaPay(orderId) {
+// Paiement Mobile Money FedaPay DANS l'application : la fonction serveur "fedapay-checkout" cree la transaction (le montant vient de la base)
+// et envoie la demande sur le telephone du client. Les cles FedaPay ne sont jamais dans l'application.
+async function startMobilePayment(orderId, { country, operator, phone }) {
   try {
     const r = await fetch(API + "/functions/v1/fedapay-checkout", {
       method: "POST",
       headers: { apikey: KEY, Authorization: "Bearer " + KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ order_id: orderId }),
+      body: JSON.stringify({ order_id: orderId, country, operator, phone }),
     });
     const d = await r.json();
-    if (!r.ok || !d.paymentUrl) return { ok: false, error: d.error || "Paiement indisponible" };
-    return { ok: true, paymentUrl: d.paymentUrl };
+    if (!r.ok || !d.ok) return { ok: false, error: d.error || "Paiement indisponible" };
+    return { ok: true };
   } catch (e) {
     return { ok: false, error: "Connexion au paiement impossible" };
   }
@@ -108,8 +109,9 @@ function ShopApp() {
   const [cart, setCart] = useState({});
   const [orderId, setOrderId] = useState("");
   const [welcome, setWelcome] = useState(false);
-  const [payUrl, setPayUrl] = useState("");
-  const [payError, setPayError] = useState("");
+  const [payOrderInfo, setPayOrderInfo] = useState(null);
+  const [sandbox, setSandbox] = useState(false);
+  const [payHint, setPayHint] = useState(false);
 
   const boot = useCallback(async () => {
     const s = readSlug();
@@ -168,34 +170,34 @@ function ShopApp() {
     const res = await placeOrder({ slug, items, name, phone, address, lat: pos.lat, lng: pos.lng, note, zoneId });
     if (!res || res.ok === false) return res || { ok: false, error: "Commande impossible" };
 
-    setPayError("");
-    setPayUrl("");
+    setPayHint(false);
     let cfg = null;
     try {
       cfg = await rpc("get_payment_config");
     } catch (e) {}
 
+    setOrderId(res.order_id);
+    setCart({});
     if (cfg && cfg.provider === "fedapay" && cfg.test !== true) {
-      const p = await startFedaPay(res.order_id);
-      setOrderId(res.order_id);
-      setCart({});
-      setScreen("order");
-      if (p.ok) {
-        setPayUrl(p.paymentUrl);
-        try {
-          if (typeof window !== "undefined") window.open(p.paymentUrl, "_blank");
-        } catch (e) {}
-      } else {
-        setPayError(p.error);
-      }
+      // Paiement reel : ecran pays / operateur / numero, puis validation sur le telephone
+      setSandbox(cfg.sandbox === true);
+      setPayOrderInfo({ order_id: res.order_id, total: res.total, code: res.code });
+      setScreen("pay");
     } else {
       // Mode simulation (test_payments actif ou paiement non configure)
-      setOrderId(res.order_id);
-      setCart({});
       setScreen("order");
       await payOrder(res.order_id);
     }
     return res;
+  };
+
+  const onPay = async (choice) => {
+    const r = await startMobilePayment(payOrderInfo.order_id, choice);
+    if (r.ok) {
+      setPayHint(true);
+      setScreen("order");
+    }
+    return r;
   };
 
   if (loading) {
@@ -237,6 +239,14 @@ function ShopApp() {
     );
   }
 
+  if (screen === "pay" && payOrderInfo) {
+    return (
+      <SafeAreaView className="flex-1 bg-surface">
+        <PayScreen order={payOrderInfo} sandbox={sandbox} onPay={onPay} onCancel={() => setScreen("shop")} />
+      </SafeAreaView>
+    );
+  }
+
   if (screen === "discovery" && marketplaceOpen) {
     return (
       <SafeAreaView className="flex-1 bg-surface">
@@ -247,24 +257,12 @@ function ShopApp() {
   if (screen === "order") {
     return (
       <SafeAreaView className="flex-1 bg-surface">
-        {payUrl ? (
+        {payHint ? (
           <View className="bg-amber-100 px-4 py-3">
-            <Text className="text-[13px] font-bold text-ink">Paiement en attente</Text>
+            <Text className="text-[13px] font-bold text-ink">Valide le paiement sur ton telephone</Text>
             <Text className="mt-0.5 text-[12px] text-muted">
-              Paie sur la page securisee FedaPay. Cette page se met a jour toute seule des que le paiement est confirme.
+              Une demande Mobile Money t'a ete envoyee. Des qu'elle est validee, cette page se met a jour toute seule.
             </Text>
-            <Pressable
-              onPress={() => Linking.openURL(payUrl).catch(() => {})}
-              className="mt-2 items-center rounded-xl bg-primary py-2.5 active:opacity-80"
-            >
-              <Text className="text-[14px] font-bold text-white">Payer maintenant</Text>
-            </Pressable>
-          </View>
-        ) : null}
-        {payError ? (
-          <View className="bg-red-100 px-4 py-3">
-            <Text className="text-[13px] font-bold text-red-700">Paiement impossible</Text>
-            <Text className="mt-0.5 text-[12px] text-red-700">{payError}. Recommence ta commande.</Text>
           </View>
         ) : null}
         <OrderScreen
