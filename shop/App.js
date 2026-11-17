@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, ActivityIndicator, Pressable, ScrollView, Modal, Linking } from "react-native";
+import { View, Text, ActivityIndicator, Pressable, ScrollView, Linking } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import Icon from "./src/components/Icon";
 import ShopScreen from "./src/screens/ShopScreen";
@@ -109,7 +109,7 @@ function ShopApp() {
   const [screen, setScreen] = useState("shop");
   const [cart, setCart] = useState({});
   const [orderId, setOrderId] = useState("");
-  const [welcome, setWelcome] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [payOrderInfo, setPayOrderInfo] = useState(null);
   const [sandbox, setSandbox] = useState(false);
   const [payHint, setPayHint] = useState(false);
@@ -144,22 +144,11 @@ function ShopApp() {
     boot();
   }, [boot]);
 
-  // CAS A (interrupteur desactive) : le client reste sur la page web de la boutique et paie, sans rien d'autre.
-  // CAS B (interrupteur active) : le client entre dans l'application : pop-up d'accueil + acces a la Decouverte.
+  // Le client arrive TOUJOURS directement dans la boutique du vendeur (ses produits), sans fenetre qui s'ouvre toute seule.
+  // CAS A (interrupteur desactive) : rien d'autre, le client achete et paie.
+  // CAS B (interrupteur active) : un bouton FLOTTANT reste sur le cote de la boutique ; il deplie un petit menu
+  // (voir les autres boutiques, devenir vendeur, devenir livreur).
   const marketplaceOpen = !!(shop && shop.vendor && shop.vendor.is_marketplace_visible === true);
-
-  useEffect(() => {
-    if (!marketplaceOpen) return;
-    try {
-      const key = "mego_welcome_" + slug;
-      if (!sessionStorage.getItem(key)) {
-        sessionStorage.setItem(key, "1");
-        setWelcome(true);
-      }
-    } catch (e) {
-      setWelcome(true);
-    }
-  }, [marketplaceOpen, slug]);
 
   const add = (p) => setCart((c) => ({ ...c, [p.id]: (c[p.id] || 0) + 1 }));
 
@@ -293,51 +282,42 @@ function ShopApp() {
         onCheckout={() => setScreen("checkout")}
       />
       {chatOn && serverUrl ? <ChatWidget slug={slug} serverUrl={serverUrl} /> : null}
-      {marketplaceOpen ? (
-        <Pressable
-          onPress={() => setScreen("discovery")}
-          className="absolute bottom-24 right-4 rounded-full bg-navy px-4 py-3"
-        >
-          <Text className="text-[13px] font-bold text-white">Decouverte</Text>
-        </Pressable>
-      ) : null}
 
-      <Modal visible={welcome && marketplaceOpen} transparent animationType="fade" onRequestClose={() => setWelcome(false)}>
-        <View className="flex-1 items-center justify-center bg-black/50 px-6">
-          <View className="w-full rounded-3xl bg-white p-5">
-            <Text className="text-center text-[17px] font-bold text-ink">
-              Bienvenue chez {shop && shop.vendor ? shop.vendor.name : "nous"}
-            </Text>
-            <Text className="mt-2 text-center text-[13px] text-muted">
-              Commande ici, ou decouvre les produits des autres boutiques.
-            </Text>
-            <Pressable
-              onPress={() => {
-                setWelcome(false);
-                setScreen("discovery");
-              }}
-              className="mt-4 items-center rounded-2xl bg-primary py-3 active:opacity-80"
-            >
-              <Text className="text-[14px] font-bold text-white">Decouvrir les boutiques</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => Linking.openURL(VENDOR_APP).catch(() => {})}
-              className="mt-2 items-center rounded-2xl bg-chip py-3 active:opacity-80"
-            >
-              <Text className="text-[14px] font-semibold text-ink">Devenir vendeur</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => Linking.openURL(RIDER_APP).catch(() => {})}
-              className="mt-2 items-center rounded-2xl bg-chip py-3 active:opacity-80"
-            >
-              <Text className="text-[14px] font-semibold text-ink">Devenir livreur</Text>
-            </Pressable>
-            <Pressable onPress={() => setWelcome(false)} className="mt-3 items-center py-2 active:opacity-70">
-              <Text className="text-[13px] text-muted">Continuer ma commande</Text>
-            </Pressable>
-          </View>
+      {marketplaceOpen ? (
+        <View pointerEvents="box-none" className="absolute bottom-24 right-4 items-end">
+          {menuOpen ? (
+            <View className="mb-2 items-end">
+              <Pressable
+                onPress={() => {
+                  setMenuOpen(false);
+                  setScreen("discovery");
+                }}
+                className="mb-2 rounded-full bg-primary px-4 py-2.5 shadow-lg active:opacity-80"
+              >
+                <Text className="text-[13px] font-bold text-white">Voir les autres boutiques</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => Linking.openURL(VENDOR_APP).catch(() => {})}
+                className="mb-2 rounded-full bg-white px-4 py-2.5 shadow-lg active:opacity-80"
+              >
+                <Text className="text-[13px] font-semibold text-ink">Devenir vendeur</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => Linking.openURL(RIDER_APP).catch(() => {})}
+                className="rounded-full bg-white px-4 py-2.5 shadow-lg active:opacity-80"
+              >
+                <Text className="text-[13px] font-semibold text-ink">Devenir livreur</Text>
+              </Pressable>
+            </View>
+          ) : null}
+          <Pressable
+            onPress={() => setMenuOpen((v) => !v)}
+            className="h-14 w-14 items-center justify-center rounded-full bg-navy shadow-lg active:opacity-80"
+          >
+            <Text className="text-[22px] font-bold text-white">{menuOpen ? "✕" : "☰"}</Text>
+          </Pressable>
         </View>
-      </Modal>
+      ) : null}
     </SafeAreaView>
   );
 }
