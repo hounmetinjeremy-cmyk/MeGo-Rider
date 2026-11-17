@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, ScrollView, Pressable, ActivityIndicator, Linking, Platform } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Linking } from "react-native";
 import Icon from "../components/Icon";
+import LiveMap from "../components/LiveMap";
 import { money, getStatus, getOrderQr } from "../lib/shop";
 import useRiderLive from "../hooks/useRiderLive";
 import { fetchRoute, formatDistance, formatDuration } from "../lib/osrm";
@@ -14,52 +15,6 @@ const LABEL = {
   DELIVERED: "Livree",
   NO_RIDER: "Aucun livreur disponible",
 };
-
-// Carte gratuite : OpenStreetMap + Leaflet (aucune cle, aucun abonnement).
-// Pour changer de fournisseur de tuiles plus tard (si le trafic grandit),
-// modifier seulement TILES.
-const TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
-
-function mapHtml(p) {
-  return (
-    '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">' +
-    '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">' +
-    '<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>' +
-    "<style>html,body,#m{height:100%;margin:0}</style></head><body><div id=\"m\"></div><script>" +
-    "var P=" + JSON.stringify(p) + ";" +
-    "var map=L.map('m');" +
-    "L.tileLayer('" + TILES + "',{maxZoom:18,attribution:'&copy; OpenStreetMap contributeurs'}).addTo(map);" +
-    "var pts=[];" +
-    "function add(c,label,color){if(!c)return;pts.push(c);" +
-    "L.circleMarker(c,{radius:9,color:'#fff',weight:2,fillColor:color,fillOpacity:1}).addTo(map)" +
-    ".bindTooltip(label,{permanent:true,direction:'top'});}" +
-    "if(P.route&&P.route.length){L.polyline(P.route,{color:'#2980b9',weight:5,opacity:0.85}).addTo(map);}" +
-    "add(P.pickup,'Vendeur','#e67e22');add(P.drop,'Vous','#2980b9');add(P.rider,'Livreur','#0a7d4b');" +
-    "if(pts.length>1)map.fitBounds(pts,{padding:[40,40]});" +
-    "else if(pts.length==1)map.setView(pts[0],15);" +
-    "else map.setView([6.37,2.39],11);" +
-    "</script></body></html>"
-  );
-}
-
-function LiveMap({ rider, pickup, drop, route }) {
-  const key = [
-    rider ? rider.lat + "," + rider.lng : "",
-    pickup ? pickup.lat + "," + pickup.lng : "",
-    drop ? drop.lat + "," + drop.lng : "",
-    route && route.length ? route.length : 0,
-  ].join("|");
-  const html = useMemo(
-    () => mapHtml({ rider, pickup, drop, route: route || [] }),
-    [key]
-  );
-  if (Platform.OS !== "web") return null;
-  return React.createElement("iframe", {
-    srcDoc: html,
-    title: "Carte de livraison",
-    style: { width: "100%", height: 300, border: 0, borderRadius: 16, marginTop: 12 },
-  });
-}
 
 function minutesAgo(iso) {
   if (!iso) return null;
@@ -198,7 +153,7 @@ export default function OrderScreen({ orderId, onBack, onNew }) {
         ) : null}
 
         {showMap ? (
-          <LiveMap rider={rider} pickup={pickup} drop={drop} route={route && route.coordinates} />
+          <LiveMap rider={rider} pickup={pickup} delivery={drop} route={route} />
         ) : null}
 
         {hasRider ? (
