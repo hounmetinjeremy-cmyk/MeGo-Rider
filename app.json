@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "MeGo Rider",
+    "name": "MeGo",
     "slug": "mego-rider",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,7 +11,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.megorider.app",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "MeGo Rider utilise votre position pour vous proposer les commandes les plus proches."
+        "NSLocationWhenInUseUsageDescription": "MeGo utilise votre position pour vous proposer les commandes les plus proches.",
+        "NSPhotoLibraryUsageDescription": "MeGo utilise vos photos pour illustrer vos produits."
       }
     },
     "android": {
@@ -26,11 +27,11 @@
     },
     "web": { "bundler": "metro" },
     "plugins": [
+      "expo-location",
       [
-        "expo-location",
+        "expo-image-picker",
         {
-          "locationAlwaysAndWhenInUsePermission": "MeGo Rider utilise votre position pour vous proposer les commandes les plus proches.",
-          "isAndroidBackgroundLocationEnabled": false
+          "photosPermission": "MeGo utilise vos photos pour illustrer vos produits."
         }
       ]
     ]
