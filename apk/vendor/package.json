@@ -1,0 +1,16 @@
+{
+  "name": "mego-vendeur-apk",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "dependencies": {
+    "expo": "~51.0.28",
+    "expo-location": "~17.0.1",
+    "react": "18.2.0",
+    "react-native": "0.74.5",
+    "react-native-webview": "13.8.6"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.0"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "MeGo Livreur",
+    "slug": "mego-livreur-apk",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": { "backgroundColor": "#0a7d4b" },
+    "android": {
+      "package": "com.mego.livreur",
+      "versionCode": 1,
+      "adaptiveIcon": { "backgroundColor": "#0a7d4b" },
+      "permissions": ["INTERNET", "ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "MeGo Livreur utilise ta position pour te proposer les courses les plus proches et permettre au client de te suivre.",
+          "isAndroidBackgroundLocationEnabled": false
+        }
+      ]
+    ]
+  }
+}
