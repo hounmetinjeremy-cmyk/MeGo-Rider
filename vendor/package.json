@@ -34,6 +34,8 @@
     "@supabase/supabase-js": "^2.45.4",
     "expo": "~51.0.28",
     "expo-image-picker": "~15.0.7",
+    "expo-location": "~17.0.1",
+    "expo-secure-store": "~13.0.2",
     "expo-status-bar": "~1.12.1",
     "nativewind": "^4.0.36",
     "react": "18.2.0",

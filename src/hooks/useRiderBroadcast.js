@@ -7,6 +7,7 @@ const BROADCAST_INTERVAL = 5000; // 5 s : position éphémère, non stockée
 /**
  * Diffuse la position du livreur en temps réel via Supabase Realtime (broadcast).
  * Aucune écriture en base : la persistance reste assurée par useRiderLocation.
+ * La position n'est envoyée qu'une fois le canal connecté (sinon elle serait perdue).
  *
  * @param {{riderId?:string, orderId?:string|null, enabled?:boolean}} options
  * @returns {{position:object|null, error:string|null}}
@@ -20,10 +21,19 @@ export default function useRiderBroadcast({ riderId, orderId = null, enabled = t
   useEffect(() => {
     if (!enabled || !riderId) return undefined;
     let cancelled = false;
+    let ready = false;
+    let last = null;
+
+    const send = (payload) => {
+      const channel = channelRef.current;
+      if (!channel) return;
+      channel.send({ type: 'broadcast', event: 'location', payload }).catch(() => {});
+    };
 
     (async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
+        if (cancelled) return;
         if (status !== 'granted') {
           setError('Permission de localisation refusée');
           return;
@@ -32,10 +42,13 @@ export default function useRiderBroadcast({ riderId, orderId = null, enabled = t
         const channel = supabase.channel(`rider-live:${riderId}`, {
           config: { broadcast: { self: false, ack: false } },
         });
-        channel.subscribe();
         channelRef.current = channel;
+        channel.subscribe((s) => {
+          ready = s === 'SUBSCRIBED';
+          if (ready && last) send(last);
+        });
 
-        subRef.current = await Location.watchPositionAsync(
+        const sub = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.High,
             timeInterval: BROADCAST_INTERVAL,
@@ -53,13 +66,17 @@ export default function useRiderBroadcast({ riderId, orderId = null, enabled = t
               accuracy: loc.coords.accuracy ?? null,
               ts: Date.now(),
             };
+            last = payload;
             setPosition(payload);
             setError(null);
-            channel
-              .send({ type: 'broadcast', event: 'location', payload })
-              .catch(() => {});
+            if (ready) send(payload);
           }
         );
+        if (cancelled) {
+          sub.remove?.();
+          return;
+        }
+        subRef.current = sub;
       } catch (e) {
         if (!cancelled) setError(e?.message || 'Localisation indisponible');
       }

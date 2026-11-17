@@ -1,5 +1,6 @@
 import "react-native-url-polyfill/auto";
 import { createClient } from "@supabase/supabase-js";
+import { getToken } from "./session";
 
 // Clé publishable : publique par nature, elle peut vivre dans le code.
 // Surchargeable via .env (EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY).
@@ -10,12 +11,9 @@ const SUPABASE_ANON_KEY =
 
 // Chaque requete porte le jeton de session du vendeur (en-tete x-mego-token) :
 // la base ne renvoie que SES donnees (sa boutique, ses commandes, ses produits, ses retraits...).
-const TOKEN_KEY = "mego_session_vendor";
+// Le jeton vient de session.js : localStorage sur le web, stockage securise du telephone dans l'APK.
 function fetchWithSession(input, init) {
-  let token = null;
-  try {
-    token = localStorage.getItem(TOKEN_KEY);
-  } catch (e) {}
+  const token = getToken("vendor");
   const headers = new Headers((init && init.headers) || (typeof input !== "string" && input && input.headers) || {});
   if (token) headers.set("x-mego-token", token);
   return fetch(input, { ...(init || {}), headers });

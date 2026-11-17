@@ -1,10 +1,19 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView, StyleSheet } from "react-native";
+import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView, StyleSheet, Platform } from "react-native";
+import { getToken, loadToken, saveToken } from "../lib/session";
 
 // Connexion / inscription par numero de telephone + code secret (4 a 8 chiffres).
 // Chaque vendeur et chaque livreur a son propre compte : plus de "premier de la table".
 const API = "https://mprusmdpirucpcwqssfg.supabase.co";
 const KEY = "sb_publishable_OqgLY_ICZBtu1-C_yN_hCA_J4U2zluA";
+
+// GPS du telephone (APK / iOS). Absent = on retombe sur le navigateur.
+let Location = null;
+try {
+  Location = require("expo-location");
+} catch (e) {
+  Location = null;
+}
 
 async function rpc(name, body) {
   const r = await fetch(API + "/rest/v1/rpc/" + name, {
@@ -15,35 +24,40 @@ async function rpc(name, body) {
   return r.json();
 }
 
-const storeKey = (kind) => "mego_session_" + kind;
-const readToken = (kind) => {
-  try {
-    return localStorage.getItem(storeKey(kind));
-  } catch (e) {
-    return null;
-  }
-};
-const writeToken = (kind, t) => {
-  try {
-    if (t) localStorage.setItem(storeKey(kind), t);
-    else localStorage.removeItem(storeKey(kind));
-  } catch (e) {}
-};
+const withTimeout = (promise, ms) =>
+  Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve(null), ms))]);
 
-function getPosition() {
-  return new Promise((resolve) => {
-    const none = { lat: null, lng: null };
-    try {
-      if (typeof navigator === "undefined" || !navigator.geolocation) return resolve(none);
-      navigator.geolocation.getCurrentPosition(
-        (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
-        () => resolve(none),
-        { timeout: 8000, maximumAge: 0, enableHighAccuracy: true }
+// Position de la boutique a l'inscription du vendeur.
+// APK / iOS : GPS du telephone (navigator.geolocation n'est pas fiable sur mobile).
+async function getPosition() {
+  const none = { lat: null, lng: null };
+  try {
+    if (Platform.OS !== "web") {
+      if (!Location) return none;
+      const perm = await Location.requestForegroundPermissionsAsync();
+      if (perm.status !== "granted") return none;
+      let p = await withTimeout(
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        12000
       );
-    } catch (e) {
-      resolve(none);
+      if (!p) p = await Location.getLastKnownPositionAsync();
+      return p ? { lat: p.coords.latitude, lng: p.coords.longitude } : none;
     }
-  });
+    return await new Promise((resolve) => {
+      try {
+        if (typeof navigator === "undefined" || !navigator.geolocation) return resolve(none);
+        navigator.geolocation.getCurrentPosition(
+          (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+          () => resolve(none),
+          { timeout: 8000, maximumAge: 0, enableHighAccuracy: true }
+        );
+      } catch (e) {
+        resolve(none);
+      }
+    });
+  } catch (e) {
+    return none;
+  }
 }
 
 /** children(ownerId, logout) est appele une fois connecte. kind = "vendor" ou "rider". */
@@ -63,7 +77,7 @@ export default function AuthGate({ kind, children }) {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const t = readToken(kind);
+      const t = await loadToken(kind);
       if (!t) {
         if (alive) setState("out");
         return;
@@ -75,7 +89,7 @@ export default function AuthGate({ kind, children }) {
           setOwner(r.owner_id);
           setState("in");
         } else {
-          writeToken(kind, null);
+          await saveToken(kind, null);
           setState("out");
         }
       } catch (e) {
@@ -88,8 +102,8 @@ export default function AuthGate({ kind, children }) {
   }, [kind]);
 
   const logout = useCallback(async () => {
-    const t = readToken(kind);
-    writeToken(kind, null);
+    const t = getToken(kind);
+    await saveToken(kind, null);
     setOwner(null);
     setPin("");
     setState("out");
@@ -118,7 +132,7 @@ export default function AuthGate({ kind, children }) {
       if (!r || r.ok === false) {
         setError((r && r.error) || "Echec, reessaie");
       } else {
-        writeToken(kind, r.token);
+        await saveToken(kind, r.token);
         setOwner(r.owner_id);
         setState("in");
       }
@@ -170,7 +184,7 @@ export default function AuthGate({ kind, children }) {
         <>
           <TextInput value={address} onChangeText={setAddress} placeholder="Adresse de la boutique (quartier, ville)" style={s.input} />
           <Text style={s.hint}>
-            Autorise la localisation quand le navigateur la demande : les livreurs s'en servent pour trouver ta boutique.
+            Autorise la localisation quand elle est demandee : les livreurs s'en servent pour trouver ta boutique.
           </Text>
         </>
       ) : null}

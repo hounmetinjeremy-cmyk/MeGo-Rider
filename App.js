@@ -21,6 +21,7 @@ import ProductScreen from "./src/screens/ProductScreen";
 import MarketplaceScreen from "./src/screens/MarketplaceScreen";
 import useRider from "./src/hooks/useRider";
 import useOrders from "./src/hooks/useOrders";
+import useRiderBroadcast from "./src/hooks/useRiderBroadcast";
 
 const DRAWER_WIDTH = Math.min(Dimensions.get("window").width * 0.82, 340);
 const MAIN_TABS = ["marketplace", "home", "wallet", "earnings"];
@@ -49,6 +50,14 @@ function RiderApp({ riderId: accountRiderId, onLogout }) {
   } = useOrders(rider ? rider.id : null);
 
   const riderId = rider ? rider.id : null;
+
+  // Course en cours : la position est diffusee en direct (le client la voit sur la carte de suivi).
+  const activeOrder = (byTab["En traitement"] || [])[0] || null;
+  useRiderBroadcast({
+    riderId,
+    orderId: activeOrder ? activeOrder.id : null,
+    enabled: !!(riderId && activeOrder),
+  });
 
   const slide = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const fade = useRef(new Animated.Value(0)).current;
