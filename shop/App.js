@@ -6,9 +6,9 @@ import ShopScreen from "./src/screens/ShopScreen";
 import CheckoutScreen from "./src/screens/CheckoutScreen";
 import OrderScreen from "./src/screens/OrderScreen";
 import PayScreen from "./src/screens/PayScreen";
-import HomeScreen from "./src/screens/HomeScreen";
 import ChatWidget from "./src/components/ChatWidget";
 import { readSlug, loadShop, placeOrder, payOrder } from "./src/lib/shop";
+import DiscoveryScreen from "./src/screens/DiscoveryScreen";
 
 const VENDOR_APP = "https://mego-vendor.pages.dev";
 const RIDER_APP = "https://mego-rider.pages.dev";
@@ -120,10 +120,8 @@ function ShopApp() {
     const s = readSlug();
     setSlug(s);
     if (!s) {
-      // Pas de boutique dans le lien : on affiche l'ACCUEIL PUBLIC (tous les produits de toutes les boutiques)
-      setError("");
-      setScreen("home");
       setLoading(false);
+      setError("Lien incomplet : il manque le nom de la boutique.");
       return;
     }
     setLoading(true);
@@ -146,8 +144,8 @@ function ShopApp() {
     boot();
   }, [boot]);
 
-  // Interrupteur du vendeur : decide seulement du comportement du LIEN partage (pop-up de bienvenue et acces a la Decouverte).
-  // Les produits, eux, sont toujours dans l'Accueil public.
+  // CAS A (interrupteur desactive) : le client reste sur la page web de la boutique et paie, sans rien d'autre.
+  // CAS B (interrupteur active) : le client entre dans l'application : pop-up d'accueil + acces a la Decouverte.
   const marketplaceOpen = !!(shop && shop.vendor && shop.vendor.is_marketplace_visible === true);
 
   useEffect(() => {
@@ -215,16 +213,7 @@ function ShopApp() {
     return (
       <SafeAreaView className="flex-1 items-center justify-center bg-surface">
         <ActivityIndicator color="#76D865" size="large" />
-        <Text className="mt-3 text-[13px] text-muted">Chargement...</Text>
-      </SafeAreaView>
-    );
-  }
-
-  // ACCUEIL PUBLIC (lien sans boutique)
-  if (!slug) {
-    return (
-      <SafeAreaView className="flex-1 bg-surface">
-        <HomeScreen />
+        <Text className="mt-3 text-[13px] text-muted">Chargement de la boutique...</Text>
       </SafeAreaView>
     );
   }
@@ -237,20 +226,10 @@ function ShopApp() {
         </View>
         <Text className="mt-3 text-center text-[15px] font-bold text-ink">{error}</Text>
         <Text className="mt-1 text-center text-[13px] text-muted">
-          Demande le bon lien au vendeur, ou retourne a l'accueil.
+          Demande le bon lien au vendeur, ou scanne son QR code.
         </Text>
         <Pressable onPress={boot} className="mt-5 rounded-2xl bg-primary px-5 py-3 active:opacity-80">
           <Text className="text-[14px] font-bold text-white">Reessayer</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => {
-            try {
-              window.location.href = "/";
-            } catch (e) {}
-          }}
-          className="mt-2 rounded-2xl bg-chip px-5 py-3 active:opacity-80"
-        >
-          <Text className="text-[14px] font-semibold text-ink">Aller a l'accueil</Text>
         </Pressable>
       </SafeAreaView>
     );
@@ -277,10 +256,10 @@ function ShopApp() {
     );
   }
 
-  if (screen === "discovery") {
+  if (screen === "discovery" && marketplaceOpen) {
     return (
       <SafeAreaView className="flex-1 bg-surface">
-        <HomeScreen onBack={() => setScreen("shop")} />
+        <DiscoveryScreen onBack={() => setScreen("shop")} />
       </SafeAreaView>
     );
   }
@@ -319,7 +298,7 @@ function ShopApp() {
           onPress={() => setScreen("discovery")}
           className="absolute bottom-24 right-4 rounded-full bg-navy px-4 py-3"
         >
-          <Text className="text-[13px] font-bold text-white">Accueil</Text>
+          <Text className="text-[13px] font-bold text-white">Decouverte</Text>
         </Pressable>
       ) : null}
 
@@ -330,7 +309,7 @@ function ShopApp() {
               Bienvenue chez {shop && shop.vendor ? shop.vendor.name : "nous"}
             </Text>
             <Text className="mt-2 text-center text-[13px] text-muted">
-              Commande ici, ou decouvre les produits de toutes les boutiques.
+              Commande ici, ou decouvre les produits des autres boutiques.
             </Text>
             <Pressable
               onPress={() => {
@@ -339,7 +318,7 @@ function ShopApp() {
               }}
               className="mt-4 items-center rounded-2xl bg-primary py-3 active:opacity-80"
             >
-              <Text className="text-[14px] font-bold text-white">Voir l'accueil</Text>
+              <Text className="text-[14px] font-bold text-white">Decouvrir les boutiques</Text>
             </Pressable>
             <Pressable
               onPress={() => Linking.openURL(VENDOR_APP).catch(() => {})}
