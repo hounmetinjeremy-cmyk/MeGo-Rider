@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, Pressable, FlatList, TextInput, Image, Linking, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, Pressable, FlatList, TextInput, Image, Linking, StyleSheet, ActivityIndicator, Platform } from "react-native";
+import ShopWebView from "../components/ShopWebView";
 
 // Accueil : fil de publications façon réseau social. Chaque produit publié par un vendeur
 // (dont l'interrupteur marketplace est activé) apparaît ici pour tous les utilisateurs.
-// Toucher une publication ouvre la boutique complète du vendeur (panier + paiement).
+// Toucher une publication ouvre la boutique complète du vendeur (panier + paiement),
+// A L'INTERIEUR de l'application (sans passer par Chrome).
 const API = "https://mprusmdpirucpcwqssfg.supabase.co";
 const KEY = "sb_publishable_OqgLY_ICZBtu1-C_yN_hCA_J4U2zluA";
 const SHOP = (process.env.EXPO_PUBLIC_SHOP_URL || "https://mego-shop.pages.dev").replace(/\/+$/, "");
@@ -42,9 +44,7 @@ function ago(d) {
   return Math.floor(s / 86400) + " j";
 }
 
-const openShop = (slug) => Linking.openURL(SHOP + "/" + slug).catch(() => {});
-
-function Post({ post, role }) {
+function Post({ post, role, onOpenShop }) {
   const [liked, setLiked] = useState(!!post.liked);
   const [likes, setLikes] = useState(Number(post.likes_count || 0));
   const [open, setOpen] = useState(false);
@@ -93,7 +93,7 @@ function Post({ post, role }) {
 
   return (
     <View style={s.card}>
-      <Pressable onPress={() => openShop(post.vendor_slug)} style={s.head}>
+      <Pressable onPress={() => onOpenShop(post.vendor_slug)} style={s.head}>
         {post.vendor_logo ? (
           <Image source={{ uri: post.vendor_logo }} style={s.avatar} />
         ) : (
@@ -107,7 +107,7 @@ function Post({ post, role }) {
         </View>
       </Pressable>
 
-      <Pressable onPress={() => openShop(post.vendor_slug)}>
+      <Pressable onPress={() => onOpenShop(post.vendor_slug)}>
         <Text style={s.title}>{post.name}</Text>
         {post.description ? <Text style={s.desc}>{post.description}</Text> : null}
         {post.image_url ? <Image source={{ uri: post.image_url }} style={s.photo} resizeMode="cover" /> : null}
@@ -120,12 +120,12 @@ function Post({ post, role }) {
       </View>
       <View style={s.actions}>
         <Pressable onPress={toggleLike} style={s.action}>
-          <Text style={[s.actionTxt, liked && { color: "#e0245e" }]}>{liked ? "♥" : "♡"} J'aime</Text>
+          <Text style={[s.actionTxt, liked && { color: "#e0245e" }]}>{liked ? "\u2665" : "\u2661"} J'aime</Text>
         </Pressable>
         <Pressable onPress={toggleComments} style={s.action}>
-          <Text style={s.actionTxt}>💬 Commenter</Text>
+          <Text style={s.actionTxt}>{"\uD83D\uDCAC Commenter"}</Text>
         </Pressable>
-        <Pressable onPress={() => openShop(post.vendor_slug)} style={[s.action, s.actionMain]}>
+        <Pressable onPress={() => onOpenShop(post.vendor_slug)} style={[s.action, s.actionMain]}>
           <Text style={s.actionMainTxt}>Voir la boutique</Text>
         </Pressable>
       </View>
@@ -133,7 +133,7 @@ function Post({ post, role }) {
       {open ? (
         <View style={s.comments}>
           <View style={s.row}>
-            <TextInput value={text} onChangeText={setText} placeholder="Écrire un commentaire…" style={s.input} />
+            <TextInput value={text} onChangeText={setText} placeholder={"\u00c9crire un commentaire\u2026"} style={s.input} />
             <Pressable onPress={send} style={s.send}>
               <Text style={s.actionMainTxt}>Envoyer</Text>
             </Pressable>
@@ -157,6 +157,15 @@ export default function MarketplaceScreen({ role = "Membre", onMenuPress, onClos
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [shopUrl, setShopUrl] = useState("");
+
+  // Dans l'appli mobile : la boutique s'ouvre DANS l'appli (fenetre interne).
+  // Sur le web : on ouvre le lien normalement.
+  const openShop = (slug) => {
+    const u = SHOP + "/" + slug;
+    if (Platform.OS === "web") Linking.openURL(u).catch(() => {});
+    else setShopUrl(u);
+  };
 
   const fetchPage = async (offset) => {
     const d = await rpc("get_feed", { p_limit: PAGE, p_offset: offset, p_device_id: deviceId() });
@@ -195,13 +204,13 @@ export default function MarketplaceScreen({ role = "Membre", onMenuPress, onClos
       <View style={s.header}>
         {onMenuPress ? (
           <Pressable onPress={onMenuPress} style={s.menu}>
-            <Text style={s.menuTxt}>☰</Text>
+            <Text style={s.menuTxt}>{"\u2630"}</Text>
           </Pressable>
         ) : null}
         <Text style={[s.pageTitle, { flex: 1 }]}>Accueil</Text>
         {onClose ? (
           <Pressable onPress={onClose} style={s.menu}>
-            <Text style={s.menuTxt}>✕</Text>
+            <Text style={s.menuTxt}>{"\u2715"}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -211,7 +220,7 @@ export default function MarketplaceScreen({ role = "Membre", onMenuPress, onClos
         <FlatList
           data={posts}
           keyExtractor={(x) => x.id}
-          renderItem={({ item }) => <Post post={item} role={role} />}
+          renderItem={({ item }) => <Post post={item} role={role} onOpenShop={openShop} />}
           refreshing={refreshing}
           onRefresh={async () => {
             setRefreshing(true);
@@ -225,6 +234,7 @@ export default function MarketplaceScreen({ role = "Membre", onMenuPress, onClos
           ListEmptyComponent={<Text style={[s.muted, { textAlign: "center", marginTop: 40 }]}>{error || "Aucune publication pour le moment."}</Text>}
         />
       )}
+      <ShopWebView url={shopUrl} onClose={() => setShopUrl("")} />
     </View>
   );
 }
