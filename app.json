@@ -7,8 +7,32 @@
     "userInterfaceStyle": "light",
     "splash": { "backgroundColor": "#FFFFFF" },
     "assetBundlePatterns": ["**/*"],
-    "ios": { "supportsTablet": true },
-    "android": { "adaptiveIcon": { "backgroundColor": "#76D865" } },
-    "web": { "bundler": "metro" }
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.megorider.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "MeGo Rider utilise votre position pour vous proposer les commandes les plus proches."
+      }
+    },
+    "android": {
+      "package": "com.megorider.app",
+      "versionCode": 1,
+      "adaptiveIcon": { "backgroundColor": "#76D865" },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "INTERNET"
+      ]
+    },
+    "web": { "bundler": "metro" },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "MeGo Rider utilise votre position pour vous proposer les commandes les plus proches.",
+          "isAndroidBackgroundLocationEnabled": false
+        }
+      ]
+    ]
   }
 }
