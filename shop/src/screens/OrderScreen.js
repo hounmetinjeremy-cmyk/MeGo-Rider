@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, ScrollView, Pressable, ActivityIndicator, Linking, Platform } from "react-native";
 import Icon from "../components/Icon";
 import { money, getStatus, getOrderQr } from "../lib/shop";
+import useRiderLive from "../hooks/useRiderLive";
+import { fetchRoute, formatDistance, formatDuration } from "../lib/osrm";
 
 const LABEL = {
   WAITING_PAYMENT: "Paiement en attente",
@@ -14,7 +16,8 @@ const LABEL = {
 };
 
 // Carte gratuite : OpenStreetMap + Leaflet (aucune cle, aucun abonnement).
-// Pour changer de fournisseur de tuiles plus tard (si le trafic grandit), modifier seulement TILES.
+// Pour changer de fournisseur de tuiles plus tard (si le trafic grandit),
+// modifier seulement TILES.
 const TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 
 function mapHtml(p) {
@@ -25,27 +28,29 @@ function mapHtml(p) {
     "<style>html,body,#m{height:100%;margin:0}</style></head><body><div id=\"m\"></div><script>" +
     "var P=" + JSON.stringify(p) + ";" +
     "var map=L.map('m');" +
-    "L.tileLayer('" + TILES + "',{maxZoom:18,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);" +
+    "L.tileLayer('" + TILES + "',{maxZoom:18,attribution:'&copy; OpenStreetMap contributeurs'}).addTo(map);" +
     "var pts=[];" +
     "function add(c,label,color){if(!c)return;pts.push(c);" +
     "L.circleMarker(c,{radius:9,color:'#fff',weight:2,fillColor:color,fillOpacity:1}).addTo(map)" +
     ".bindTooltip(label,{permanent:true,direction:'top'});}" +
+    "if(P.route&&P.route.length){L.polyline(P.route,{color:'#2980b9',weight:5,opacity:0.85}).addTo(map);}" +
     "add(P.pickup,'Vendeur','#e67e22');add(P.drop,'Vous','#2980b9');add(P.rider,'Livreur','#0a7d4b');" +
-    "if(pts.length>1)map.fitBounds(pts,{padding:[40,40]});else if(pts.length==1)map.setView(pts[0],15);else map.setView([6.37,2.39],11);" +
+    "if(pts.length>1)map.fitBounds(pts,{padding:[40,40]});" +
+    "else if(pts.length==1)map.setView(pts[0],15);" +
+    "else map.setView([6.37,2.39],11);" +
     "</script></body></html>"
   );
 }
 
-function LiveMap({ st }) {
-  const pt = (la, ln) => (la != null && ln != null ? [Number(la), Number(ln)] : null);
-  const key = [st.rider_lat, st.rider_lng, st.pickup_lat, st.pickup_lng, st.delivery_lat, st.delivery_lng].join("|");
+function LiveMap({ rider, pickup, drop, route }) {
+  const key = [
+    rider ? rider.lat + "," + rider.lng : "",
+    pickup ? pickup.lat + "," + pickup.lng : "",
+    drop ? drop.lat + "," + drop.lng : "",
+    route && route.length ? route.length : 0,
+  ].join("|");
   const html = useMemo(
-    () =>
-      mapHtml({
-        rider: pt(st.rider_lat, st.rider_lng),
-        pickup: pt(st.pickup_lat, st.pickup_lng),
-        drop: pt(st.delivery_lat, st.delivery_lng),
-      }),
+    () => mapHtml({ rider, pickup, drop, route: route || [] }),
     [key]
   );
   if (Platform.OS !== "web") return null;
@@ -62,10 +67,24 @@ function minutesAgo(iso) {
   return m >= 0 ? m : null;
 }
 
+function point(lat, lng) {
+  if (lat == null || lng == null) return null;
+  const la = Number(lat);
+  const ln = Number(lng);
+  if (!isFinite(la) || !isFinite(ln)) return null;
+  return { lat: la, lng: ln };
+}
+
+// Arrondi a ~100 m : evite de recalculer l'itineraire a chaque position recue.
+function round3(n) {
+  return n == null ? null : Math.round(Number(n) * 1000) / 1000;
+}
+
 export default function OrderScreen({ orderId, onBack, onNew }) {
   const [st, setSt] = useState(null);
   const [busy, setBusy] = useState(true);
   const [qr, setQr] = useState(null);
+  const [route, setRoute] = useState(null);
 
   const refresh = async () => {
     setBusy(true);
@@ -83,15 +102,60 @@ export default function OrderScreen({ orderId, onBack, onNew }) {
   }, [orderId]);
 
   const dispatch = st ? st.dispatch : null;
-  const label = st ? LABEL[dispatch] || st.status || "En cours" : "Chargement";
   const done = dispatch === "DELIVERED";
-  const hasRider = st && st.rider_lat != null && st.rider_lng != null && !done;
-  const showMap = st && !done && (hasRider || (st.pickup_lat != null && st.pickup_lng != null));
+  const riderId = st ? st.rider_id : null;
+
+  // Position temps reel du livreur (Supabase Realtime broadcast, non stockee).
+  const { live, online } = useRiderLive({
+    riderId,
+    orderId,
+    enabled: !!riderId && !done,
+  });
+
+  const pickup = st ? point(st.pickup_lat, st.pickup_lng) : null;
+  const drop = st ? point(st.delivery_lat, st.delivery_lng) : null;
+  const rider = live
+    ? { lat: live.lat, lng: live.lng }
+    : st
+    ? point(st.rider_lat, st.rider_lng)
+    : null;
+
+  const rLat = rider ? round3(rider.lat) : null;
+  const rLng = rider ? round3(rider.lng) : null;
+  const dLat = drop ? round3(drop.lat) : null;
+  const dLng = drop ? round3(drop.lng) : null;
+
+  // Itineraire routier livreur -> client (OSRM), repli silencieux si indisponible.
+  useEffect(() => {
+    if (rLat == null || rLng == null || dLat == null || dLng == null) {
+      setRoute(null);
+      return undefined;
+    }
+    const ctrl = new AbortController();
+    let cancelled = false;
+    fetchRoute({ lat: rLat, lng: rLng }, { lat: dLat, lng: dLng }, { signal: ctrl.signal })
+      .then((r) => {
+        if (!cancelled) setRoute(r);
+      })
+      .catch(() => {
+        if (!cancelled) setRoute(null);
+      });
+    return () => {
+      cancelled = true;
+      ctrl.abort();
+    };
+  }, [rLat, rLng, dLat, dLng]);
+
+  const label = st ? LABEL[dispatch] || st.status || "En cours" : "Chargement";
+  const hasRider = !!rider && !done;
+  const showMap = st && !done && (hasRider || !!pickup);
   const age = st ? minutesAgo(st.rider_updated_at) : null;
+  const liveAge = live && live.ts ? Math.max(0, Math.floor((Date.now() - live.ts) / 1000)) : null;
 
   const openGoogle = () => {
+    if (!rider) return;
     Linking.openURL(
-      "https://www.google.com/maps/search/?api=1&query=" + st.rider_lat + "," + st.rider_lng
+      "https://www.google.com/maps/search/?api=1&query=" + rider.lat + "," + rider.lng
     ).catch(() => {});
   };
 
@@ -123,7 +187,9 @@ export default function OrderScreen({ orderId, onBack, onNew }) {
             </View>
             <View className="ml-3 flex-1">
               <Text className="text-[14px] font-bold text-ink">{st.rider_name}</Text>
-              <Text className="text-[12px] text-muted">Livreur</Text>
+              <Text className="text-[12px] text-muted">
+                Livreur{online ? " · en direct" : ""}
+              </Text>
             </View>
             {st.rider_phone ? (
               <Text className="text-[13px] font-semibold text-primary">{st.rider_phone}</Text>
@@ -131,15 +197,31 @@ export default function OrderScreen({ orderId, onBack, onNew }) {
           </View>
         ) : null}
 
-        {showMap ? <LiveMap st={st} /> : null}
+        {showMap ? (
+          <LiveMap rider={rider} pickup={pickup} drop={drop} route={route && route.coordinates} />
+        ) : null}
+
         {hasRider ? (
           <View className="mt-2 flex-row items-center justify-between">
             <Text className="text-[11px] text-muted">
-              {age != null ? "Position du livreur mise a jour il y a " + age + " min" : "Position du livreur"}
+              {liveAge != null
+                ? "Position en direct, il y a " + liveAge + " s"
+                : age != null
+                ? "Position du livreur mise a jour il y a " + age + " min"
+                : "Position du livreur"}
             </Text>
             <Pressable onPress={openGoogle} className="active:opacity-70">
               <Text className="text-[12px] font-semibold text-primary">Ouvrir dans Google Maps</Text>
             </Pressable>
+          </View>
+        ) : null}
+
+        {route && hasRider ? (
+          <View className="mt-2 flex-row items-center justify-between rounded-2xl bg-white px-4 py-3">
+            <Text className="text-[12px] text-muted">Distance restante</Text>
+            <Text className="text-[13px] font-bold text-ink">
+              {formatDistance(route.distance)} · {formatDuration(route.duration)}
+            </Text>
           </View>
         ) : null}
 
@@ -154,6 +236,7 @@ export default function OrderScreen({ orderId, onBack, onNew }) {
             </Text>
           </View>
         ) : null}
+
         <View className="mt-3 rounded-2xl bg-white p-4">
           <Text className="mb-2 text-[13px] font-bold text-ink">Recapitulatif</Text>
           {(st && st.items ? st.items : []).map((it, i) => (
