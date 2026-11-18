@@ -240,7 +240,17 @@ function ShopApp() {
   if (screen === "pay" && payOrderInfo) {
     return (
       <SafeAreaView className="flex-1 bg-surface">
-        <PayScreen order={payOrderInfo} sandbox={sandbox} onPay={onPay} onCancel={() => setScreen("shop")} />
+        <PayScreen
+          order={payOrderInfo}
+          sandbox={sandbox}
+          onPay={onPay}
+          rpc={rpc}
+          onWalletPaid={() => {
+            setPayHint(false);
+            setScreen("order");
+          }}
+          onCancel={() => setScreen("shop")}
+        />
       </SafeAreaView>
     );
   }
