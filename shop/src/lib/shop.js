@@ -40,10 +40,35 @@ export async function payOrder(orderId) {
   return data || { ok: false, error: "Paiement impossible" };
 }
 
+// Filet de securite du webhook FedaPay : tant que la commande est "en attente de paiement", on demande a notre
+// serveur (/api/verify) de verifier chez FedaPay, au plus toutes les 5 s. S'il confirme, on relit l'etat de la commande.
+const verifyAt = {};
+async function verifyPayment(orderId) {
+  try {
+    const r = await fetch("/api/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order_id: orderId }),
+    });
+    const d = await r.json();
+    return !!(d && d.paid);
+  } catch (e) {
+    return false;
+  }
+}
+
 export async function getStatus(orderId) {
   const { data, error } = await supabase.rpc("get_order_status", { p_order_id: orderId });
   if (error) return { ok: false, error: error.message };
-  return data || { ok: false, error: "Commande introuvable" };
+  if (!data) return { ok: false, error: "Commande introuvable" };
+  if (data.ok && data.payment === "PENDING" && Date.now() - (verifyAt[orderId] || 0) > 5000) {
+    verifyAt[orderId] = Date.now();
+    if (await verifyPayment(orderId)) {
+      const again = await supabase.rpc("get_order_status", { p_order_id: orderId });
+      if (!again.error && again.data) return again.data;
+    }
+  }
+  return data;
 }
 
 const KEY = "mego_last_order";
