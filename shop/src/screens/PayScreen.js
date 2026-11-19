@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from "react-native";
 import { money } from "../lib/shop";
 
@@ -13,21 +13,30 @@ const COUNTRIES = [
   { id: "gn", flag: "🇬🇳", name: "Guinee", dial: "224", len: 9, ph: "621234567", ops: [["MTN", "mtn_open_gn"]] },
 ];
 
-export default function PayScreen({ order, sandbox, onPay, onCancel, rpc, onWalletPaid }) {
+export default function PayScreen({ order, sandbox, onPay, onCancel, rpc, onWalletPaid, walletToken }) {
   const [cid, setCid] = useState("bj");
   const [op, setOp] = useState("");
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  // Paiement avec le portefeuille (vendeur ou livreur) : connexion telephone + code PIN, puis solde disponible.
-  const [wKind, setWKind] = useState("vendor");
-  const [wPhone, setWPhone] = useState("");
-  const [wPin, setWPin] = useState("");
-  const [wToken, setWToken] = useState("");
-  const [wBal, setWBal] = useState(null);
+  // Portefeuille du compte connecte dans l'application (livreur / vendeur) : detecte automatiquement, sans connexion.
+  const [wInfo, setWInfo] = useState(null);
   const [wBusy, setWBusy] = useState(false);
   const [wErr, setWErr] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    if (!rpc || !walletToken) return undefined;
+    rpc("my_wallet", { p_token: walletToken })
+      .then((w) => {
+        if (alive && w && w.ok === true) setWInfo({ kind: w.kind, available: Number(w.available) || 0 });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [rpc, walletToken]);
 
   const country = COUNTRIES.find((c) => c.id === cid) || COUNTRIES[0];
   const ops = sandbox ? [...country.ops, ["Momo Test", "momo_test"]] : country.ops;
@@ -44,43 +53,18 @@ export default function PayScreen({ order, sandbox, onPay, onCancel, rpc, onWall
     if (r && r.ok === false) setError(r.error || "Paiement impossible");
   };
 
-  const walletLogin = async () => {
-    setWErr("");
-    if (!rpc) return setWErr("Portefeuille indisponible");
-    if (!wPhone.trim() || !wPin.trim()) return setWErr("Numero et code PIN obligatoires");
-    setWBusy(true);
-    try {
-      const r = await rpc("login_account", { p_kind: wKind, p_phone: wPhone, p_pin: wPin });
-      if (!r || r.ok !== true) {
-        setWErr((r && r.error) || "Connexion impossible");
-      } else {
-        const w = await rpc("my_wallet", { p_token: r.token });
-        if (w && w.ok === true) {
-          setWToken(r.token);
-          setWBal(Number(w.available) || 0);
-          setWPin("");
-        } else {
-          setWErr((w && w.error) || "Solde indisponible");
-        }
-      }
-    } catch (e) {
-      setWErr("Connexion impossible");
-    }
-    setWBusy(false);
-  };
-
   const walletPay = async () => {
     setWErr("");
     setWBusy(true);
     try {
-      const r = await rpc("pay_order_with_wallet", { p_token: wToken, p_order_id: order.order_id });
+      const r = await rpc("pay_order_with_wallet", { p_token: walletToken, p_order_id: order.order_id });
       if (r && r.ok === true) {
         setWBusy(false);
         if (onWalletPaid) onWalletPaid();
         return;
       }
       setWErr((r && r.error) || "Paiement impossible");
-      if (r && r.balance != null) setWBal(Number(r.balance) || 0);
+      if (r && r.balance != null) setWInfo((i) => (i ? { ...i, available: Number(r.balance) || 0 } : i));
     } catch (e) {
       setWErr("Paiement impossible");
     }
@@ -146,74 +130,29 @@ export default function PayScreen({ order, sandbox, onPay, onCancel, rpc, onWall
         </Text>
       </View>
 
-      {rpc ? (
+      {wInfo ? (
         <View className="mt-4 rounded-2xl bg-white p-4">
-          <Text className="text-[13px] font-bold text-ink">Ou payer avec mon portefeuille</Text>
-          {wToken ? (
-            <View>
-              <Text className="mt-2 text-[12px] text-muted">Solde disponible</Text>
-              <Text className="text-[22px] font-extrabold text-ink">{money(wBal || 0)}</Text>
-              {wErr ? <Text className="mt-2 text-[12px] text-red-600">{wErr}</Text> : null}
-              <Pressable
-                onPress={walletPay}
-                disabled={wBusy || (wBal || 0) < wTotal}
-                className={`mt-3 items-center rounded-full py-4 active:opacity-80 ${
-                  (wBal || 0) < wTotal ? "bg-chip" : "bg-primary"
-                }`}
-              >
-                {wBusy ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text className="text-[15px] font-extrabold text-white">
-                    {(wBal || 0) < wTotal ? "Solde insuffisant" : "PAYER " + money(wTotal)}
-                  </Text>
-                )}
-              </Pressable>
-            </View>
-          ) : (
-            <View>
-              <View className="mt-2 flex-row">
-                {[["vendor", "Vendeur"], ["rider", "Livreur"]].map(([k, l]) => (
-                  <Pressable
-                    key={k}
-                    onPress={() => setWKind(k)}
-                    className={`mr-2 rounded-xl border px-4 py-2 ${
-                      wKind === k ? "border-primary bg-primary" : "border-line bg-white"
-                    }`}
-                  >
-                    <Text className={`text-[13px] font-bold ${wKind === k ? "text-white" : "text-ink"}`}>{l}</Text>
-                  </Pressable>
-                ))}
-              </View>
-              <TextInput
-                value={wPhone}
-                onChangeText={setWPhone}
-                placeholder="Numero de ton compte"
-                keyboardType="phone-pad"
-                className="mt-2 rounded-xl border border-line bg-white px-3 py-3 text-[15px] text-ink"
-              />
-              <TextInput
-                value={wPin}
-                onChangeText={setWPin}
-                placeholder="Code PIN"
-                secureTextEntry
-                keyboardType="number-pad"
-                className="mt-2 rounded-xl border border-line bg-white px-3 py-3 text-[15px] text-ink"
-              />
-              {wErr ? <Text className="mt-2 text-[12px] text-red-600">{wErr}</Text> : null}
-              <Pressable
-                onPress={walletLogin}
-                disabled={wBusy}
-                className="mt-3 items-center rounded-full bg-navy py-3.5 active:opacity-80"
-              >
-                {wBusy ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text className="text-[14px] font-bold text-white">Voir mon solde</Text>
-                )}
-              </Pressable>
-            </View>
-          )}
+          <Text className="text-[13px] font-bold text-ink">
+            Payer avec mon portefeuille {wInfo.kind === "vendor" ? "(Vendeur)" : "(Livreur)"}
+          </Text>
+          <Text className="mt-2 text-[12px] text-muted">Solde disponible</Text>
+          <Text className="text-[22px] font-extrabold text-ink">{money(wInfo.available)}</Text>
+          {wErr ? <Text className="mt-2 text-[12px] text-red-600">{wErr}</Text> : null}
+          <Pressable
+            onPress={walletPay}
+            disabled={wBusy || wInfo.available < wTotal}
+            className={`mt-3 items-center rounded-full py-4 active:opacity-80 ${
+              wInfo.available < wTotal ? "bg-chip" : "bg-primary"
+            }`}
+          >
+            {wBusy ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text className="text-[15px] font-extrabold text-white">
+                {wInfo.available < wTotal ? "Solde insuffisant" : "PAYER " + money(wTotal)}
+              </Text>
+            )}
+          </Pressable>
           <Text className="mt-2 text-center text-[11px] text-muted">
             L'argent reste bloque jusqu'a ce que le livreur scanne ton code.
           </Text>
