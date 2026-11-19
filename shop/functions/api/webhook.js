@@ -2,7 +2,7 @@ import { json, fedaBase, sbHeaders, sbUrl, hmacHex, safeEqual } from "../_shared
 
 // POST /api/webhook : webhook FedaPay (a declarer dans FedaPay : https://<ton-site>/api/webhook).
 // Signature : en-tete X-FEDAPAY-SIGNATURE = "t=...,v1=..." ; HMAC-SHA256 de "<t>.<corps brut>" avec le secret du webhook (comme Chap-money).
-// En plus, on RE-VERIFIE la transaction chez FedaPay (statut + montant) avant de valider une commande OU un abonnement IA.
+// En plus, on RE-VERIFIE la transaction chez FedaPay (statut + montant) avant de valider une commande, un depot de portefeuille OU un abonnement IA.
 export async function onRequestPost({ request, env }) {
   const secret = env.FEDAPAY_WEBHOOK_SECRET;
   if (!secret || !env.FEDAPAY_SECRET_KEY) return json({ error: "Secrets FedaPay non configures" }, 500);
@@ -42,12 +42,13 @@ export async function onRequestPost({ request, env }) {
     });
     return { ok: r.ok, out: await r.json().catch(() => ({})) };
   };
+  const notFound = (r, prefix) => r.ok && r.out && r.out.ok === false && String(r.out.error || "").startsWith(prefix);
 
   // 1) paiement d'une commande ?
   let res = await call("confirm_payment_ref");
-  // 2) sinon : abonnement de l'assistant IA ?
-  if (res.ok && res.out && res.out.ok === false && String(res.out.error || "").startsWith("Aucune commande")) {
-    res = await call("confirm_ai_subscription");
-  }
+  // 2) sinon : depot dans un portefeuille ?
+  if (notFound(res, "Aucune commande")) res = await call("confirm_deposit_ref");
+  // 3) sinon : abonnement de l'assistant IA ?
+  if (notFound(res, "Aucun depot")) res = await call("confirm_ai_subscription");
   return json({ received: true, result: res.out }, res.ok ? 200 : 500);
 }

@@ -6,6 +6,7 @@ import ShopScreen from "./src/screens/ShopScreen";
 import CheckoutScreen from "./src/screens/CheckoutScreen";
 import OrderScreen from "./src/screens/OrderScreen";
 import PayScreen from "./src/screens/PayScreen";
+import WalletScreen from "./src/screens/WalletScreen";
 import ChatWidget from "./src/components/ChatWidget";
 import { readSlug, loadShop, placeOrder, payOrder } from "./src/lib/shop";
 import DiscoveryScreen from "./src/screens/DiscoveryScreen";
@@ -22,23 +23,6 @@ async function rpc(name, body) {
     body: JSON.stringify(body || {}),
   });
   return r.json();
-}
-
-// Paiement Mobile Money FedaPay DANS l'application : la fonction Cloudflare Pages /api/checkout cree la transaction
-// (le montant vient de la base) et envoie la demande sur le telephone du client. Les cles FedaPay restent dans les secrets Cloudflare.
-async function startMobilePayment(serverUrl, orderId, { country, operator, phone }) {
-  try {
-    const r = await fetch(serverUrl.replace(/\/+$/, "") + "/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ order_id: orderId, country, operator, phone }),
-    });
-    const d = await r.json();
-    if (!r.ok || !d.ok) return { ok: false, error: d.error || "Paiement indisponible" };
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: "Connexion au paiement impossible" };
-  }
 }
 
 // Position du client (pour que le livreur sache ou livrer) : demandee a la commande, 6 s maximum.
@@ -112,7 +96,6 @@ function ShopApp() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [payOrderInfo, setPayOrderInfo] = useState(null);
   const [sandbox, setSandbox] = useState(false);
-  const [payHint, setPayHint] = useState(false);
   const [serverUrl, setServerUrl] = useState("");
   const [chatOn, setChatOn] = useState(false);
 
@@ -137,6 +120,7 @@ function ShopApp() {
       const [cs, cfg] = await Promise.all([rpc("get_chat_status", { p_slug: s }), rpc("get_payment_config")]);
       setChatOn(!!(cs && cs.enabled));
       if (cfg && cfg.server) setServerUrl(cfg.server);
+      setSandbox(!!(cfg && cfg.sandbox === true));
     } catch (e) {}
   }, []);
 
@@ -148,6 +132,7 @@ function ShopApp() {
   // CAS A (interrupteur desactive) : rien d'autre, le client achete et paie.
   // CAS B (interrupteur active) : un bouton FLOTTANT reste sur le cote de la boutique ; il deplie un petit menu
   // (voir les autres boutiques, devenir vendeur, devenir livreur).
+  // Le bouton "Mon portefeuille" est TOUJOURS la, que le vendeur ait active l'interrupteur ou non.
   const marketplaceOpen = !!(shop && shop.vendor && shop.vendor.is_marketplace_visible === true);
 
   const add = (p) => setCart((c) => ({ ...c, [p.id]: (c[p.id] || 0) + 1 }));
@@ -167,7 +152,6 @@ function ShopApp() {
     const res = await placeOrder({ slug, items, name, phone, address, lat: pos.lat, lng: pos.lng, note, zoneId });
     if (!res || res.ok === false) return res || { ok: false, error: "Commande impossible" };
 
-    setPayHint(false);
     let cfg = null;
     try {
       cfg = await rpc("get_payment_config");
@@ -176,7 +160,7 @@ function ShopApp() {
     setOrderId(res.order_id);
     setCart({});
     if (cfg && cfg.provider === "fedapay" && cfg.test !== true && cfg.server) {
-      // Paiement reel : ecran pays / operateur / numero, puis validation sur le telephone
+      // Paiement reel : tout passe par le portefeuille (depot Mobile Money FedaPay, puis prelevement sur le solde)
       setServerUrl(cfg.server);
       setSandbox(cfg.sandbox === true);
       setPayOrderInfo({ order_id: res.order_id, total: res.total, code: res.code });
@@ -187,15 +171,6 @@ function ShopApp() {
       await payOrder(res.order_id);
     }
     return res;
-  };
-
-  const onPay = async (choice) => {
-    const r = await startMobilePayment(serverUrl, payOrderInfo.order_id, choice);
-    if (r.ok) {
-      setPayHint(true);
-      setScreen("order");
-    }
-    return r;
   };
 
   if (loading) {
@@ -243,15 +218,17 @@ function ShopApp() {
         <PayScreen
           order={payOrderInfo}
           sandbox={sandbox}
-          onPay={onPay}
-          rpc={rpc}
-          walletToken={typeof window !== "undefined" && window.__MEGO_TOKEN__ ? String(window.__MEGO_TOKEN__) : ""}
-          onWalletPaid={() => {
-            setPayHint(false);
-            setScreen("order");
-          }}
+          onWalletPaid={() => setScreen("order")}
           onCancel={() => setScreen("shop")}
         />
+      </SafeAreaView>
+    );
+  }
+
+  if (screen === "wallet") {
+    return (
+      <SafeAreaView className="flex-1 bg-surface">
+        <WalletScreen sandbox={sandbox} onBack={() => setScreen("shop")} />
       </SafeAreaView>
     );
   }
@@ -266,14 +243,6 @@ function ShopApp() {
   if (screen === "order") {
     return (
       <SafeAreaView className="flex-1 bg-surface">
-        {payHint ? (
-          <View className="bg-amber-100 px-4 py-3">
-            <Text className="text-[13px] font-bold text-ink">Valide le paiement sur ton telephone</Text>
-            <Text className="mt-0.5 text-[12px] text-muted">
-              Une demande Mobile Money t'a ete envoyee. Des qu'elle est validee, cette page se met a jour toute seule.
-            </Text>
-          </View>
-        ) : null}
         <OrderScreen
           orderId={orderId}
           onBack={() => setScreen("shop")}
@@ -293,6 +262,13 @@ function ShopApp() {
         onCheckout={() => setScreen("checkout")}
       />
       {chatOn && serverUrl ? <ChatWidget slug={slug} serverUrl={serverUrl} /> : null}
+
+      <Pressable
+        onPress={() => setScreen("wallet")}
+        className="absolute bottom-24 left-4 rounded-full bg-navy px-4 py-3 shadow-lg active:opacity-80"
+      >
+        <Text className="text-[13px] font-bold text-white">Mon portefeuille</Text>
+      </Pressable>
 
       {marketplaceOpen ? (
         <View pointerEvents="box-none" className="absolute bottom-24 right-4 items-end">
