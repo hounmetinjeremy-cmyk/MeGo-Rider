@@ -1,12 +1,20 @@
 import React from "react";
 import { Modal, View, Text, Pressable, Platform, Linking, ActivityIndicator, SafeAreaView, StyleSheet } from "react-native";
 import { WebView } from "react-native-webview";
+import { getToken } from "../lib/session";
 
 // Ouvre une boutique A L'INTERIEUR de l'application (fenetre plein ecran), sans Chrome.
 // Les liens de la boutique (meme site) restent dedans ; WhatsApp, telephone, etc. s'ouvrent normalement.
 export default function ShopWebView({ url, onClose }) {
   if (!url || Platform.OS === "web") return null;
   const origin = url.split("/").slice(0, 3).join("/");
+
+  // Compte connecte dans l'application (livreur) : la boutique l'utilise pour debiter son portefeuille.
+  let token = null;
+  try {
+    token = getToken("rider");
+  } catch (e) {}
+  const inject = token ? "window.__MEGO_TOKEN__ = " + JSON.stringify(String(token)) + "; true;" : "true;";
 
   const allow = (req) => {
     const u = (req && req.url) || "";
@@ -27,6 +35,7 @@ export default function ShopWebView({ url, onClose }) {
           source={{ uri: url }}
           style={{ flex: 1 }}
           javaScriptEnabled
+          injectedJavaScriptBeforeContentLoaded={inject}
           domStorageEnabled
           geolocationEnabled
           setSupportMultipleWindows={false}
