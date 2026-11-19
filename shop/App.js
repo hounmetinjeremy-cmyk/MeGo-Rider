@@ -245,6 +245,7 @@ function ShopApp() {
           sandbox={sandbox}
           onPay={onPay}
           rpc={rpc}
+          walletToken={typeof window !== "undefined" && window.__MEGO_TOKEN__ ? String(window.__MEGO_TOKEN__) : ""}
           onWalletPaid={() => {
             setPayHint(false);
             setScreen("order");
