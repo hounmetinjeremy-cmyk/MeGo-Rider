@@ -2,6 +2,14 @@ import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, Pressable, Linking, Share, Platform } from "react-native";
 import { supabase } from "../lib/supabaseClient";
 
+// GPS du telephone (APK / iOS). Absent = on retombe sur le navigateur.
+let Location = null;
+try {
+  Location = require("expo-location");
+} catch (e) {
+  Location = null;
+}
+
 const SHOP_BASE = (
   process.env.EXPO_PUBLIC_SHOP_URL || "https://mego-shop.pages.dev"
 ).replace(/\/+$/, "");
@@ -76,27 +84,49 @@ export default function ShopLinkCard({ vendor }) {
   }, [message]);
 
   /** Enregistre la position actuelle comme position de la boutique (le livreur vient la chercher ici). */
-  const savePosition = useCallback(() => {
+  const savePosition = useCallback(async () => {
     if (!vendor || !vendor.id) return;
+    setPosBusy(true);
+    setPosMsg("");
+
+    const store = async (lat, lng) => {
+      const { error } = await supabase.from("vendors").update({ latitude: lat, longitude: lng }).eq("id", vendor.id);
+      setPosBusy(false);
+      if (error) {
+        setPosMsg("Enregistrement impossible, réessaie.");
+      } else {
+        setHasPosition(true);
+        setPosMsg("Position de la boutique enregistrée.");
+      }
+    };
+
+    // APK / iOS : GPS du telephone (navigator.geolocation n'est pas fiable sur mobile).
+    if (Platform.OS !== "web") {
+      try {
+        if (!Location) throw new Error("localisation indisponible");
+        const perm = await Location.requestForegroundPermissionsAsync();
+        if (perm.status !== "granted") {
+          setPosBusy(false);
+          setPosMsg("Position refusée : autorise la localisation pour l'application, puis réessaie.");
+          return;
+        }
+        const p = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        await store(p.coords.latitude, p.coords.longitude);
+      } catch (e) {
+        setPosBusy(false);
+        setPosMsg("Position indisponible. Active le GPS du téléphone, puis réessaie.");
+      }
+      return;
+    }
+
     if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setPosBusy(false);
       setPosMsg("Position indisponible sur cet appareil.");
       return;
     }
-    setPosBusy(true);
-    setPosMsg("");
     navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { error } = await supabase
-          .from("vendors")
-          .update({ latitude: pos.coords.latitude, longitude: pos.coords.longitude })
-          .eq("id", vendor.id);
-        setPosBusy(false);
-        if (error) {
-          setPosMsg("Enregistrement impossible, réessaie.");
-        } else {
-          setHasPosition(true);
-          setPosMsg("Position de la boutique enregistrée.");
-        }
+      (pos) => {
+        store(pos.coords.latitude, pos.coords.longitude);
       },
       () => {
         setPosBusy(false);
