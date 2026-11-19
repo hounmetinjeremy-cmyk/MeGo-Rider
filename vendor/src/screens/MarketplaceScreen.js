@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, Pressable, FlatList, TextInput, Image, Linking, StyleSheet, ActivityIndicator } from "react-native";
+import { getToken } from "../lib/session";
 
 // Accueil : fil de publications façon réseau social. Chaque produit publié par un vendeur
 // (dont l'interrupteur marketplace est activé) apparaît ici pour tous les utilisateurs.
@@ -42,7 +43,15 @@ function ago(d) {
   return Math.floor(s / 86400) + " j";
 }
 
-const openShop = (slug) => Linking.openURL(SHOP + "/" + slug).catch(() => {});
+// Le compte vendeur connecte est transmis a la boutique (dans le fragment #, jamais envoye au serveur) :
+// ses achats chez les autres vendeurs sont alors preleves automatiquement sur son portefeuille.
+const openShop = (slug) => {
+  let t = null;
+  try {
+    t = getToken("vendor");
+  } catch (e) {}
+  Linking.openURL(SHOP + "/" + slug + (t ? "#mego=" + encodeURIComponent(String(t)) : "")).catch(() => {});
+};
 
 function Post({ post, role }) {
   const [liked, setLiked] = useState(!!post.liked);
