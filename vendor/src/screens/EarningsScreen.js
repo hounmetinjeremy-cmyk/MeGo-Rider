@@ -1,14 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, ScrollView, RefreshControl, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, RefreshControl, ActivityIndicator, Platform, Linking } from "react-native";
 import AppHeader from "../components/AppHeader";
 import StatCard from "../components/StatCard";
 import EmptyState from "../components/EmptyState";
+import ShopWebView from "../components/ShopWebView";
 import { Card, SectionTitle, Button, Input, Badge } from "../components/Kit";
 import colors from "../theme/colors";
 import { STATUS } from "../lib/orders";
 import { listWithdrawals, requestWithdrawal, listPayoutMethods } from "../lib/db";
+import { getToken } from "../lib/session";
 
 const WITHDRAW_LABEL = { PENDING: "En attente", PAID: "Paye", REJECTED: "Refuse" };
+const SHOP = (process.env.EXPO_PUBLIC_SHOP_URL || "https://mego-shop.pages.dev").replace(/\/+$/, "");
 
 function money(value, currency) {
   const n = Number(value || 0);
@@ -22,8 +25,8 @@ function shortDate(value) {
   return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-/** Revenus : chiffres cles, solde et demandes de retrait. */
-export default function EarningsScreen({ vendor, orders, onMenuPress, onBack }) {
+/** Revenus : chiffres cles, solde, depot d'argent et demandes de retrait. */
+export default function EarningsScreen({ vendor, orders, onMenuPress, onBack, onRefresh }) {
   const [withdrawals, setWithdrawals] = useState([]);
   const [methods, setMethods] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,6 +34,7 @@ export default function EarningsScreen({ vendor, orders, onMenuPress, onBack }) 
   const [error, setError] = useState(null);
   const [amount, setAmount] = useState("");
   const [saving, setSaving] = useState(false);
+  const [depositUrl, setDepositUrl] = useState("");
 
   const stats = useMemo(() => {
     const list = orders || [];
@@ -62,6 +66,26 @@ export default function EarningsScreen({ vendor, orders, onMenuPress, onBack }) 
   useEffect(() => {
     load();
   }, [load]);
+
+  // Depot : la page "Mon portefeuille" de la boutique s'ouvre DANS l'application (bouton Retour), sans Chrome.
+  // Le compte vendeur connecte est reconnu automatiquement ; le solde se met a jour au retour.
+  const openDeposit = () => {
+    const u = SHOP + "/?wallet=1";
+    if (Platform.OS === "web") {
+      let t = null;
+      try {
+        t = getToken("vendor");
+      } catch (e) {}
+      Linking.openURL(u + (t ? "#mego=" + encodeURIComponent(String(t)) : "")).catch(() => {});
+    } else {
+      setDepositUrl(u);
+    }
+  };
+
+  const closeDeposit = () => {
+    setDepositUrl("");
+    if (onRefresh) onRefresh();
+  };
 
   const request = async () => {
     if (!vendor || !vendor.id) return;
@@ -99,6 +123,7 @@ export default function EarningsScreen({ vendor, orders, onMenuPress, onBack }) 
             onRefresh={() => {
               setRefreshing(true);
               load();
+              if (onRefresh) onRefresh();
             }}
           />
         }
@@ -119,6 +144,14 @@ export default function EarningsScreen({ vendor, orders, onMenuPress, onBack }) 
             <StatCard icon="clock" label="En attente" value={String(stats.pending)} tint="#F59E0B" />
           </View>
         </View>
+
+        <SectionTitle>Deposer de l'argent</SectionTitle>
+        <Card>
+          <Text className="mb-3 text-[12px] text-muted">
+            Ton solde sert a payer dans les boutiques des autres. S'il est insuffisant, depose de l'argent par Mobile Money (FedaPay).
+          </Text>
+          <Button label="Deposer de l'argent" icon="wallet" onPress={openDeposit} />
+        </Card>
 
         <SectionTitle>Demander un retrait</SectionTitle>
         <Card>
@@ -158,6 +191,7 @@ export default function EarningsScreen({ vendor, orders, onMenuPress, onBack }) 
           ))
         )}
       </ScrollView>
+      <ShopWebView url={depositUrl} onClose={closeDeposit} />
     </View>
   );
 }

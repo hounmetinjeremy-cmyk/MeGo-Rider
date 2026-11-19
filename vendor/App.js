@@ -69,7 +69,7 @@ function VendorApp({ vendorId, onLogout }) {
       case "products":
         return <ProductsScreen vendor={vendor} onMenuPress={openDrawer} onBack={goBack} />;
       case "earnings":
-        return <EarningsScreen vendor={vendor} orders={orders} onMenuPress={openDrawer} onBack={goBack} />;
+        return <EarningsScreen vendor={vendor} orders={orders} onRefresh={reload} onMenuPress={openDrawer} onBack={goBack} />;
       case "zones":
         return <ZonesScreen vendor={vendor} onMenuPress={openDrawer} onBack={goBack} />;
       case "profile":

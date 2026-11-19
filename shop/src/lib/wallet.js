@@ -12,13 +12,27 @@ export async function rpc(name, body) {
   return r.json();
 }
 
-// Compte connecte dans l'application mobile (livreur / vendeur) : jeton transmis par l'APK, sans connexion.
+// Version web des applications Livreur / Vendeur : le compte connecte arrive dans le fragment #mego=... du lien.
+// On le lit une seule fois puis on l'efface de la barre d'adresse (il ne part jamais vers un serveur).
+let hashToken = "";
+try {
+  if (typeof window !== "undefined") {
+    const m = /[#&]mego=([^&]+)/.exec(window.location.hash || "");
+    if (m) {
+      hashToken = decodeURIComponent(m[1]);
+      try {
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      } catch (e) {}
+    }
+  }
+} catch (e) {}
+
+// Compte connecte dans l'application mobile (livreur / vendeur) : jeton transmis par l'APK (ou le lien), sans connexion.
 export function injectedToken() {
   try {
-    return typeof window !== "undefined" && window.__MEGO_TOKEN__ ? String(window.__MEGO_TOKEN__) : "";
-  } catch (e) {
-    return "";
-  }
+    if (typeof window !== "undefined" && window.__MEGO_TOKEN__) return String(window.__MEGO_TOKEN__);
+  } catch (e) {}
+  return hashToken;
 }
 export const isInjected = () => !!injectedToken();
 
