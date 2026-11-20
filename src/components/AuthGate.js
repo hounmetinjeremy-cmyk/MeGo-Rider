@@ -72,6 +72,7 @@ export default function AuthGate({ kind, children }) {
   const [address, setAddress] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [linkMode, setLinkMode] = useState(false);
 
   const isVendor = kind === "vendor";
 
@@ -147,11 +148,15 @@ export default function AuthGate({ kind, children }) {
   const googleBusy = useRef(false);
   const google = async () => {
     if (googleBusy.current || busy) return;
+    if (linkMode && (!phone.trim() || !pin.trim())) {
+      setError("Numero et code secret obligatoires pour lier ton ancien compte");
+      return;
+    }
     googleBusy.current = true;
     setError("");
     setBusy(true);
     try {
-      const r = await signInWithGoogle(kind);
+      const r = await signInWithGoogle(kind, linkMode ? { phone, pin } : undefined);
       if (r && r.cancelled) {
         // fenetre fermee par l'utilisateur : rien a afficher
       } else if (!r || r.ok !== true) {
@@ -176,6 +181,68 @@ export default function AuthGate({ kind, children }) {
     );
   }
   if (state === "in") return children(owner, logout);
+
+  // APK : connexion Google OBLIGATOIRE avant de creer ou d'utiliser un compte vendeur / livreur.
+  // Un ancien compte (telephone + code) est d'abord lie a Google, puis il ne sert plus qu'avec Google.
+  if (googleAvailable) {
+    return (
+      <ScrollView style={s.screen} contentContainerStyle={s.box} keyboardShouldPersistTaps="handled">
+        <Text style={s.brand}>MeGo {isVendor ? "Vendeur" : "Livreur"}</Text>
+        <Text style={s.sub}>
+          {linkMode ? "Lie ton ancien compte a Google" : "Connecte-toi avec Google pour continuer"}
+        </Text>
+
+        {linkMode ? (
+          <>
+            <TextInput
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="Numero de telephone de ton ancien compte"
+              keyboardType="phone-pad"
+              style={s.input}
+            />
+            <TextInput
+              value={pin}
+              onChangeText={(v) => setPin(v.replace(/[^0-9]/g, ""))}
+              placeholder="Code secret de ton ancien compte"
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={8}
+              style={s.input}
+            />
+            <Text style={s.hint}>
+              Une seule fois : ensuite tu te connectes uniquement avec Google, ton solde et tes commandes sont conserves.
+            </Text>
+          </>
+        ) : (
+          <Text style={s.hint}>
+            Pas besoin de numero ni de code : ton compte {isVendor ? "vendeur" : "livreur"} est cree avec ton compte Google.
+          </Text>
+        )}
+
+        {error ? <Text style={s.error}>{error}</Text> : null}
+
+        <Pressable onPress={google} disabled={busy} style={s.btn}>
+          {busy ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={s.btnTxt}>{linkMode ? "Lier et continuer avec Google" : "Continuer avec Google"}</Text>
+          )}
+        </Pressable>
+        <Pressable
+          onPress={() => {
+            setError("");
+            setLinkMode(!linkMode);
+          }}
+          style={{ marginTop: 16 }}
+        >
+          <Text style={s.link}>
+            {linkMode ? "Retour" : "J'ai deja un compte (telephone + code) : le lier a Google"}
+          </Text>
+        </Pressable>
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView style={s.screen} contentContainerStyle={s.box} keyboardShouldPersistTaps="handled">
@@ -220,11 +287,6 @@ export default function AuthGate({ kind, children }) {
       <Pressable onPress={submit} disabled={busy} style={s.btn}>
         {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.btnTxt}>{mode === "login" ? "Se connecter" : "Creer mon compte"}</Text>}
       </Pressable>
-      {googleAvailable ? (
-        <Pressable onPress={google} disabled={busy} style={s.gbtn}>
-          <Text style={s.gbtnTxt}>Continuer avec Google</Text>
-        </Pressable>
-      ) : null}
       <Pressable onPress={() => { setError(""); setMode(mode === "login" ? "register" : "login"); }} style={{ marginTop: 16 }}>
         <Text style={s.link}>{mode === "login" ? "Pas de compte ? Creer un compte" : "J'ai deja un compte : me connecter"}</Text>
       </Pressable>
@@ -243,6 +305,4 @@ const s = StyleSheet.create({
   btn: { backgroundColor: "#0a7d4b", borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   btnTxt: { color: "#fff", fontWeight: "700", fontSize: 15 },
   link: { color: "#0a7d4b", textAlign: "center", fontWeight: "600" },
-  gbtn: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#dadce0", borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 12 },
-  gbtnTxt: { color: "#1a1a1a", fontWeight: "700", fontSize: 15 },
 });
