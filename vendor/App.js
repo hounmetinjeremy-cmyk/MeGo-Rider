@@ -9,13 +9,14 @@ import DashboardScreen from "./src/screens/DashboardScreen";
 import OrdersScreen from "./src/screens/OrdersScreen";
 import ProductsScreen from "./src/screens/ProductsScreen";
 import EarningsScreen from "./src/screens/EarningsScreen";
+import WalletScreen from "./src/screens/WalletScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import ZonesScreen from "./src/screens/ZonesScreen";
 import MarketplaceScreen from "./src/screens/MarketplaceScreen";
 import useVendor from "./src/hooks/useVendor";
 
 const DRAWER_WIDTH = Math.min(300, Dimensions.get("window").width * 0.82);
-const MAIN_TABS = ["marketplace", "home", "orders", "products", "earnings"];
+const MAIN_TABS = ["marketplace", "home", "orders", "products", "wallet", "earnings"];
 
 /**
  * Application vendeur MeGo Vendor (connecte : vendorId vient du compte).
@@ -68,8 +69,19 @@ function VendorApp({ vendorId, onLogout }) {
         return <OrdersScreen vendor={vendor} orders={orders} onRefresh={reload} onMenuPress={openDrawer} onBack={goBack} />;
       case "products":
         return <ProductsScreen vendor={vendor} onMenuPress={openDrawer} onBack={goBack} />;
+      case "wallet":
+        return <WalletScreen vendor={vendor} onRefresh={reload} onMenuPress={openDrawer} />;
       case "earnings":
-        return <EarningsScreen vendor={vendor} orders={orders} onRefresh={reload} onMenuPress={openDrawer} onBack={goBack} />;
+        return (
+          <EarningsScreen
+            vendor={vendor}
+            orders={orders}
+            onRefresh={reload}
+            onMenuPress={openDrawer}
+            onBack={goBack}
+            onGoWallet={() => setActiveNav("wallet")}
+          />
+        );
       case "zones":
         return <ZonesScreen vendor={vendor} onMenuPress={openDrawer} onBack={goBack} />;
       case "profile":

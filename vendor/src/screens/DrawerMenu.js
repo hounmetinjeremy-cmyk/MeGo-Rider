@@ -7,6 +7,7 @@ const ITEMS = [
   { key: "home", icon: "home", label: "Tableau de bord" },
   { key: "orders", icon: "package", label: "Commandes" },
   { key: "products", icon: "card", label: "Produits" },
+  { key: "wallet", icon: "wallet", label: "Portefeuille" },
   { key: "earnings", icon: "dollar", label: "Revenus" },
   { key: "profile", icon: "user", label: "Profil" },
   { key: "bank", icon: "card", label: "Compte bancaire" },

@@ -9,6 +9,7 @@ const ITEMS = [
   { key: "home", label: "Gestion", icon: "package" },
   { key: "orders", label: "Commandes", icon: "truck" },
   { key: "products", label: "Produits", icon: "card" },
+  { key: "wallet", label: "Portefeuille", icon: "wallet" },
   { key: "earnings", label: "Revenus", icon: "dollar" },
 ];
 
@@ -17,7 +18,7 @@ export default function BottomNavBar({ activeKey = "home", onChange }) {
   return (
     <View>
       <BalanceStrip kind="vendor" />
-      <View className="flex-row items-center justify-around border-t border-line bg-navy px-2 pb-2 pt-2">
+      <View className="flex-row items-center justify-around border-t border-line bg-navy px-1 pb-2 pt-2">
         {ITEMS.map((item) => {
           const isActive = item.key === activeKey;
           return (
@@ -32,7 +33,9 @@ export default function BottomNavBar({ activeKey = "home", onChange }) {
                 color={isActive ? colors.primary : colors.muted}
               />
               <Text
-                className={`mt-1 text-[11px] ${
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                className={`mt-1 text-[10px] ${
                   isActive ? "font-semibold text-primary" : "text-muted"
                 }`}
               >
