@@ -1,8 +1,10 @@
 import { json, CORS_PREFLIGHT, sbHeaders, sbUrl } from "../_shared";
 
-// Connexion Google (APK) : l'application envoie le jeton d'identite Google (id_token) obtenu avec le Web client ID.
+// Connexion Google (APK et lien web) : le client envoie le jeton d'identite Google (id_token) obtenu avec le Web client ID.
 // Le serveur verifie la signature (cles publiques Google), l'audience, l'emetteur et l'expiration, puis cree ou retrouve
-// le compte vendeur / livreur dans Supabase et renvoie une session. Seuls les scopes de base sont utilises (openid, email, profile).
+// le compte dans Supabase et renvoie une session. Seuls les scopes de base sont utilises (openid, email, profile).
+//  - kind "vendor" / "rider" : APK. Avec link {phone, pin}, lie un ancien compte (telephone + PIN) a l'identite Google.
+//  - kind "customer" : lien web, le client se connecte avant de valider sa commande.
 // Variable Cloudflare Pages requise : GOOGLE_WEB_CLIENT_ID (le Web client ID, ex : 123-abc.apps.googleusercontent.com).
 
 const ISSUERS = ["https://accounts.google.com", "accounts.google.com"];
@@ -73,7 +75,7 @@ export async function onRequestPost({ request, env }) {
       return json({ ok: false, error: "Requete invalide", code: "bad_request" }, 400);
     }
     const kind = body && body.kind;
-    if (kind !== "vendor" && kind !== "rider") {
+    if (kind !== "vendor" && kind !== "rider" && kind !== "customer") {
       return json({ ok: false, error: "Type de compte invalide", code: "bad_kind" }, 400);
     }
     if (!env.GOOGLE_WEB_CLIENT_ID) {
@@ -88,15 +90,30 @@ export async function onRequestPost({ request, env }) {
       return json({ ok: false, error: "Connexion Google refusee", code: "invalid_token" }, 401);
     }
 
-    const r = await fetch(sbUrl(env, "/rest/v1/rpc/google_login"), {
-      method: "POST",
-      headers: sbHeaders(env),
-      body: JSON.stringify({
+    const link = body.link && typeof body.link === "object" ? body.link : null;
+    let fn = "google_login";
+    let args = {
+      p_kind: kind,
+      p_sub: String(claims.sub),
+      p_email: claims.email ? String(claims.email) : null,
+      p_name: claims.name ? String(claims.name) : null,
+    };
+    if (link) {
+      if (kind === "customer") return json({ ok: false, error: "Type de compte invalide", code: "bad_kind" }, 400);
+      fn = "google_link";
+      args = {
         p_kind: kind,
         p_sub: String(claims.sub),
         p_email: claims.email ? String(claims.email) : null,
-        p_name: claims.name ? String(claims.name) : null,
-      }),
+        p_phone: String(link.phone || ""),
+        p_pin: String(link.pin || ""),
+      };
+    }
+
+    const r = await fetch(sbUrl(env, "/rest/v1/rpc/" + fn), {
+      method: "POST",
+      headers: sbHeaders(env),
+      body: JSON.stringify(args),
     });
     const out = await r.json().catch(() => null);
     if (!r.ok || !out) return json({ ok: false, error: "Service indisponible, reessaie plus tard", code: "backend" }, 502);
