@@ -22,7 +22,7 @@ function message(e) {
   return "Connexion Google impossible";
 }
 
-async function run(kind) {
+async function run(kind, link) {
   try {
     if (!configured) {
       GoogleSignin.configure({ webClientId: WEB_CLIENT_ID, offlineAccess: false });
@@ -42,10 +42,12 @@ async function run(kind) {
     const timer = setTimeout(() => ctrl.abort(), 15000);
     let d = null;
     try {
+      const payload = { id_token: idToken, kind };
+      if (link) payload.link = { phone: String(link.phone || ""), pin: String(link.pin || "") };
       const r = await fetch(SHOP + "/api/google-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id_token: idToken, kind }),
+        body: JSON.stringify(payload),
         signal: ctrl.signal,
       });
       d = await r.json().catch(() => null);
@@ -58,7 +60,7 @@ async function run(kind) {
       } catch (e) {}
       return { ok: false, error: (d && d.error) || "Connexion Google refusee" };
     }
-    return { ok: true, token: d.token, owner_id: d.owner_id, created: !!d.created };
+    return { ok: true, token: d.token, owner_id: d.owner_id, created: !!d.created, linked: !!d.linked };
   } catch (e) {
     const m = message(e);
     if (m === null) return { ok: false, cancelled: true };
@@ -67,12 +69,15 @@ async function run(kind) {
   }
 }
 
-/** Renvoie { ok, token, owner_id } | { ok:false, error } | { ok:false, cancelled:true }. Un seul appel a la fois. */
-export function signInWithGoogle(kind) {
+/**
+ * Renvoie { ok, token, owner_id } | { ok:false, error } | { ok:false, cancelled:true }. Un seul appel a la fois.
+ * link = { phone, pin } : lie un ancien compte (telephone + code) a l'identite Google.
+ */
+export function signInWithGoogle(kind, link) {
   if (!googleAvailable) return Promise.resolve({ ok: false, error: "Connexion Google indisponible" });
   if (kind !== "vendor" && kind !== "rider") return Promise.resolve({ ok: false, error: "Type de compte invalide" });
   if (inFlight) return inFlight;
-  inFlight = run(kind).finally(() => {
+  inFlight = run(kind, link).finally(() => {
     inFlight = null;
   });
   return inFlight;
