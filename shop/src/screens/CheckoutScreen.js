@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from "react-native";
 import Icon from "../components/Icon";
 import { money } from "../lib/shop";
+import { GoogleButton } from "../lib/googleWeb";
 
 // Defini HORS de l'ecran : un composant declare dans un autre est recree a chaque frappe,
 // ce qui fait perdre le focus au champ et fermer le clavier.
@@ -21,7 +22,7 @@ function Field({ label, value, set, placeholder, keyboard, multiline }) {
   );
 }
 
-export default function CheckoutScreen({ shop, cart, onBack, onPlaced }) {
+export default function CheckoutScreen({ shop, cart, onBack, onPlaced, needGoogle, onGoogleToken }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
@@ -30,6 +31,8 @@ export default function CheckoutScreen({ shop, cart, onBack, onPlaced }) {
   const zones = (shop && shop.zones) || [];
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [gErr, setGErr] = useState("");
+  const [gBusy, setGBusy] = useState(false);
   const products = shop.products || [];
   const lines = products.filter((p) => cart[p.id]);
   const subtotal = lines.reduce((a, p) => a + cart[p.id] * Number(p.price || 0), 0);
@@ -41,7 +44,20 @@ export default function CheckoutScreen({ shop, cart, onBack, onPlaced }) {
     if (!zoneId && zones.length === 1) setZoneId(zones[0].id);
   }, [zones.length]);
 
+  // Lien web : connexion Google avant la validation finale, pour rattacher la commande au client.
+  const onToken = async (credential) => {
+    setGErr("");
+    setGBusy(true);
+    const r = onGoogleToken ? await onGoogleToken(credential) : null;
+    setGBusy(false);
+    if (!r || r.ok !== true) setGErr((r && r.error) || "Connexion Google impossible");
+  };
+
   const submit = async () => {
+    if (needGoogle) {
+      setErr("Connecte-toi avec Google pour valider ta commande.");
+      return;
+    }
     if (zones.length > 0 && !zoneId) {
       setErr("Choisis ta zone de livraison (boutons en haut de la section Livraison).");
       return;
@@ -110,12 +126,23 @@ export default function CheckoutScreen({ shop, cart, onBack, onPlaced }) {
           <Field label="Note (optionnel)" value={note} set={setNote} placeholder="Sans piment..." multiline />
         </View>
 
+        {needGoogle ? (
+          <View className="mt-3 rounded-2xl bg-white p-4">
+            <Text className="mb-1 text-[13px] font-bold text-ink">Connexion requise</Text>
+            <Text className="mb-3 text-[12px] text-muted">
+              Connecte-toi avec Google pour valider ta commande. Elle sera rattachee a ton compte.
+            </Text>
+            {gBusy ? <ActivityIndicator color="#76D865" /> : <GoogleButton onToken={onToken} onError={setGErr} />}
+            {gErr ? <Text className="mt-2 text-[12px] text-red-500">{gErr}</Text> : null}
+          </View>
+        ) : null}
+
         {err ? <Text className="mt-3 text-[13px] font-semibold text-red-500">{err}</Text> : null}
 
         <Pressable
           onPress={submit}
-          disabled={busy}
-          className="mt-4 flex-row items-center justify-center rounded-2xl bg-primary py-3.5 active:opacity-80">
+          disabled={busy || !!needGoogle}
+          className={"mt-4 flex-row items-center justify-center rounded-2xl bg-primary py-3.5 active:opacity-80" + (needGoogle ? " opacity-50" : "")}>
           {busy ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
