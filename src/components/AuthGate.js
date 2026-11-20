@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView, StyleSheet, Platform } from "react-native";
 import { getToken, loadToken, saveToken } from "../lib/session";
+import { googleAvailable, signInWithGoogle } from "../lib/googleAuth";
 
 // Connexion / inscription par numero de telephone + code secret (4 a 8 chiffres).
 // Chaque vendeur et chaque livreur a son propre compte : plus de "premier de la table".
@@ -142,6 +143,31 @@ export default function AuthGate({ kind, children }) {
     setBusy(false);
   };
 
+  // Connexion Google (APK) : un seul appel a la fois, jamais de nouvelle tentative automatique.
+  const googleBusy = useRef(false);
+  const google = async () => {
+    if (googleBusy.current || busy) return;
+    googleBusy.current = true;
+    setError("");
+    setBusy(true);
+    try {
+      const r = await signInWithGoogle(kind);
+      if (r && r.cancelled) {
+        // fenetre fermee par l'utilisateur : rien a afficher
+      } else if (!r || r.ok !== true) {
+        setError((r && r.error) || "Connexion Google impossible");
+      } else {
+        await saveToken(kind, r.token);
+        setOwner(r.owner_id);
+        setState("in");
+      }
+    } catch (e) {
+      setError("Connexion Google impossible");
+    }
+    setBusy(false);
+    googleBusy.current = false;
+  };
+
   if (state === "loading") {
     return (
       <View style={[s.screen, { justifyContent: "center" }]}>
@@ -194,6 +220,11 @@ export default function AuthGate({ kind, children }) {
       <Pressable onPress={submit} disabled={busy} style={s.btn}>
         {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.btnTxt}>{mode === "login" ? "Se connecter" : "Creer mon compte"}</Text>}
       </Pressable>
+      {googleAvailable ? (
+        <Pressable onPress={google} disabled={busy} style={s.gbtn}>
+          <Text style={s.gbtnTxt}>Continuer avec Google</Text>
+        </Pressable>
+      ) : null}
       <Pressable onPress={() => { setError(""); setMode(mode === "login" ? "register" : "login"); }} style={{ marginTop: 16 }}>
         <Text style={s.link}>{mode === "login" ? "Pas de compte ? Creer un compte" : "J'ai deja un compte : me connecter"}</Text>
       </Pressable>
@@ -212,4 +243,6 @@ const s = StyleSheet.create({
   btn: { backgroundColor: "#0a7d4b", borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   btnTxt: { color: "#fff", fontWeight: "700", fontSize: 15 },
   link: { color: "#0a7d4b", textAlign: "center", fontWeight: "600" },
+  gbtn: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#dadce0", borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 12 },
+  gbtnTxt: { color: "#1a1a1a", fontWeight: "700", fontSize: 15 },
 });
