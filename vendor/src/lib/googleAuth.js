@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
+import { getIdentity, setIdentity } from "./identity";
 
 // Connexion Google dans l'APK. Scopes de base uniquement : openid, email, profile (valeur par defaut de la bibliotheque,
 // aucun scope supplementaire n'est demande). Le Web client ID est injecte a la construction de l'APK
@@ -22,20 +23,22 @@ function message(e) {
   return "Connexion Google impossible";
 }
 
-async function run(kind, link) {
+async function run(kind, link, presetToken) {
   try {
-    if (!configured) {
-      GoogleSignin.configure({ webClientId: WEB_CLIENT_ID, offlineAccess: false });
-      configured = true;
+    let idToken = presetToken || "";
+    if (!idToken) {
+      if (!configured) {
+        GoogleSignin.configure({ webClientId: WEB_CLIENT_ID, offlineAccess: false });
+        configured = true;
+      }
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      try {
+        await GoogleSignin.signOut(); // force le choix du compte, evite un ancien etat bloque
+      } catch (e) {}
+      const res = await GoogleSignin.signIn();
+      idToken = res && (res.idToken || (res.data && res.data.idToken));
+      if (!idToken) return { ok: false, error: "Connexion Google impossible" };
     }
-    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-    try {
-      await GoogleSignin.signOut(); // force le choix du compte, evite un ancien etat bloque
-    } catch (e) {}
-
-    const res = await GoogleSignin.signIn();
-    const idToken = res && (res.idToken || (res.data && res.data.idToken));
-    if (!idToken) return { ok: false, error: "Connexion Google impossible" };
 
     // Un seul envoi au serveur, delai maximum 15 s, aucune nouvelle tentative automatique.
     const ctrl = new AbortController();
@@ -78,6 +81,58 @@ export function signInWithGoogle(kind, link) {
   if (kind !== "vendor" && kind !== "rider") return Promise.resolve({ ok: false, error: "Type de compte invalide" });
   if (inFlight) return inFlight;
   inFlight = run(kind, link).finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
+}
+
+/**
+ * Etape 1 (avant le choix du role) : choisit le compte Google et garde l'identite en memoire.
+ * Aucun envoi au serveur ici : le role n'est pas encore connu.
+ * Renvoie { ok, id_token, email, name } | { ok:false, error } | { ok:false, cancelled:true }.
+ */
+let identityInFlight = null;
+export function googleIdentity() {
+  if (!googleAvailable) return Promise.resolve({ ok: false, error: "Connexion Google indisponible" });
+  if (identityInFlight) return identityInFlight;
+  identityInFlight = (async () => {
+    try {
+      if (!configured) {
+        GoogleSignin.configure({ webClientId: WEB_CLIENT_ID, offlineAccess: false });
+        configured = true;
+      }
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      try {
+        await GoogleSignin.signOut(); // force le choix du compte, evite un ancien etat bloque
+      } catch (e) {}
+      const res = await GoogleSignin.signIn();
+      const idToken = res && (res.idToken || (res.data && res.data.idToken));
+      if (!idToken) return { ok: false, error: "Connexion Google impossible" };
+      const user = (res && res.user) || (res && res.data && res.data.user) || {};
+      const v = { id_token: idToken, email: user.email || "", name: user.name || "" };
+      setIdentity(v);
+      return { ok: true, id_token: v.id_token, email: v.email, name: v.name };
+    } catch (e) {
+      const m = message(e);
+      if (m === null) return { ok: false, cancelled: true };
+      return { ok: false, error: m };
+    }
+  })().finally(() => {
+    identityInFlight = null;
+  });
+  return identityInFlight;
+}
+
+/**
+ * Etape 2 (apres le choix du role) : ouvre la session du role avec l'identite deja choisie,
+ * sans redemander le compte Google.
+ */
+export function loginWithIdentity(kind, link) {
+  if (kind !== "vendor" && kind !== "rider") return Promise.resolve({ ok: false, error: "Type de compte invalide" });
+  const id = getIdentity();
+  if (!id || !id.id_token) return Promise.resolve({ ok: false, error: "Identite Google absente" });
+  if (inFlight) return inFlight;
+  inFlight = run(kind, link, id.id_token).finally(() => {
     inFlight = null;
   });
   return inFlight;

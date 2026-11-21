@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView, StyleSheet, Platform } from "react-native";
 import { getToken, loadToken, saveToken } from "../lib/session";
-import { googleAvailable, signInWithGoogle } from "../lib/googleAuth";
+import { googleAvailable, signInWithGoogle, loginWithIdentity } from "../lib/googleAuth";
+import { getIdentity } from "../lib/identity";
 
 // Connexion / inscription par numero de telephone + code secret (4 a 8 chiffres).
 // Chaque vendeur et chaque livreur a son propre compte : plus de "premier de la table".
@@ -81,6 +82,19 @@ export default function AuthGate({ kind, children }) {
     (async () => {
       const t = await loadToken(kind);
       if (!t) {
+        // Identite Google deja choisie (etape 1) : on ouvre la session du role sans redemander le compte.
+        if (getIdentity()) {
+          try {
+            const g = await loginWithIdentity(kind);
+            if (!alive) return;
+            if (g && g.ok === true && g.token) {
+              await saveToken(kind, g.token);
+              setOwner(g.owner_id);
+              setState("in");
+              return;
+            }
+          } catch (e) {}
+        }
         if (alive) setState("out");
         return;
       }
@@ -156,7 +170,10 @@ export default function AuthGate({ kind, children }) {
     setError("");
     setBusy(true);
     try {
-      const r = await signInWithGoogle(kind, linkMode ? { phone, pin } : undefined);
+      // Identite Google deja choisie a l'etape 1 : on ne redemande pas le compte.
+      const r = getIdentity()
+        ? await loginWithIdentity(kind, linkMode ? { phone, pin } : undefined)
+        : await signInWithGoogle(kind, linkMode ? { phone, pin } : undefined);
       if (r && r.cancelled) {
         // fenetre fermee par l'utilisateur : rien a afficher
       } else if (!r || r.ok !== true) {
