@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView, StyleSheet, Platform } from "react-native";
 import { getToken, loadToken, saveToken } from "../lib/session";
-import { googleAvailable, signInWithGoogle, loginWithIdentity } from "../lib/googleAuth";
-import { getIdentity } from "../lib/identity";
+import { googleAvailable, signInWithGoogle, loginWithIdToken } from "../lib/googleAuth";
+import { useIdentity, setIdentity } from "../lib/identity";
 
 // Connexion / inscription par numero de telephone + code secret (4 a 8 chiffres).
 // Chaque vendeur et chaque livreur a son propre compte : plus de "premier de la table".
@@ -74,6 +74,7 @@ export default function AuthGate({ kind, children }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [linkMode, setLinkMode] = useState(false);
+  const identity = useIdentity();
 
   const isVendor = kind === "vendor";
 
@@ -82,19 +83,6 @@ export default function AuthGate({ kind, children }) {
     (async () => {
       const t = await loadToken(kind);
       if (!t) {
-        // Identite Google deja choisie (etape 1) : on ouvre la session du role sans redemander le compte.
-        if (getIdentity()) {
-          try {
-            const g = await loginWithIdentity(kind);
-            if (!alive) return;
-            if (g && g.ok === true && g.token) {
-              await saveToken(kind, g.token);
-              setOwner(g.owner_id);
-              setState("in");
-              return;
-            }
-          } catch (e) {}
-        }
         if (alive) setState("out");
         return;
       }
@@ -159,6 +147,7 @@ export default function AuthGate({ kind, children }) {
   };
 
   // Connexion Google (APK) : un seul appel a la fois, jamais de nouvelle tentative automatique.
+  // Si l'utilisateur s'est deja connecte avec Google au demarrage (identity), on cree / retrouve directement son compte de ce role.
   const googleBusy = useRef(false);
   const google = async () => {
     if (googleBusy.current || busy) return;
@@ -170,14 +159,19 @@ export default function AuthGate({ kind, children }) {
     setError("");
     setBusy(true);
     try {
-      // Identite Google deja choisie a l'etape 1 : on ne redemande pas le compte.
-      const r = getIdentity()
-        ? await loginWithIdentity(kind, linkMode ? { phone, pin } : undefined)
-        : await signInWithGoogle(kind, linkMode ? { phone, pin } : undefined);
+      const link = linkMode ? { phone, pin } : undefined;
+      const r = identity
+        ? await loginWithIdToken(kind, identity.idToken, link)
+        : await signInWithGoogle(kind, link);
       if (r && r.cancelled) {
         // fenetre fermee par l'utilisateur : rien a afficher
       } else if (!r || r.ok !== true) {
-        setError((r && r.error) || "Connexion Google impossible");
+        if (identity && r && r.code === "invalid_token") {
+          setIdentity(null); // jeton Google expire : on redemande la connexion Google
+          setError("Ta connexion Google a expire : reconnecte-toi.");
+        } else {
+          setError((r && r.error) || "Connexion Google impossible");
+        }
       } else {
         await saveToken(kind, r.token);
         setOwner(r.owner_id);
@@ -202,11 +196,16 @@ export default function AuthGate({ kind, children }) {
   // APK : connexion Google OBLIGATOIRE avant de creer ou d'utiliser un compte vendeur / livreur.
   // Un ancien compte (telephone + code) est d'abord lie a Google, puis il ne sert plus qu'avec Google.
   if (googleAvailable) {
+    const role = isVendor ? "vendeur" : "livreur";
     return (
       <ScrollView style={s.screen} contentContainerStyle={s.box} keyboardShouldPersistTaps="handled">
         <Text style={s.brand}>MeGo {isVendor ? "Vendeur" : "Livreur"}</Text>
         <Text style={s.sub}>
-          {linkMode ? "Lie ton ancien compte a Google" : "Connecte-toi avec Google pour continuer"}
+          {linkMode
+            ? "Lie ton ancien compte a Google"
+            : identity
+            ? "Connecte avec " + (identity.email || "Google")
+            : "Connecte-toi avec Google pour continuer"}
         </Text>
 
         {linkMode ? (
@@ -233,7 +232,9 @@ export default function AuthGate({ kind, children }) {
           </>
         ) : (
           <Text style={s.hint}>
-            Pas besoin de numero ni de code : ton compte {isVendor ? "vendeur" : "livreur"} est cree avec ton compte Google.
+            {identity
+              ? "Ton espace " + role + " est cree automatiquement avec ce compte Google."
+              : "Pas besoin de numero ni de code : ton compte " + role + " est cree avec ton compte Google."}
           </Text>
         )}
 
@@ -243,7 +244,15 @@ export default function AuthGate({ kind, children }) {
           {busy ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={s.btnTxt}>{linkMode ? "Lier et continuer avec Google" : "Continuer avec Google"}</Text>
+            <Text style={s.btnTxt}>
+              {identity
+                ? linkMode
+                  ? "Lier et continuer"
+                  : "Continuer en tant que " + role
+                : linkMode
+                ? "Lier et continuer avec Google"
+                : "Continuer avec Google"}
+            </Text>
           )}
         </Pressable>
         <Pressable
@@ -257,6 +266,17 @@ export default function AuthGate({ kind, children }) {
             {linkMode ? "Retour" : "J'ai deja un compte (telephone + code) : le lier a Google"}
           </Text>
         </Pressable>
+        {identity ? (
+          <Pressable
+            onPress={() => {
+              setError("");
+              setIdentity(null);
+            }}
+            style={{ marginTop: 12 }}
+          >
+            <Text style={s.link}>Changer de compte Google</Text>
+          </Pressable>
+        ) : null}
       </ScrollView>
     );
   }
