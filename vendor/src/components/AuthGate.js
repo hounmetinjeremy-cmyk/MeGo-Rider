@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView, StyleSheet, Platform } from "react-native";
 import { getToken, loadToken, saveToken } from "../lib/session";
+import { googleAvailable, signInWithGoogle } from "../lib/googleAuth";
 
 // Connexion / inscription par numero de telephone + code secret (4 a 8 chiffres).
 // Chaque vendeur et chaque livreur a son propre compte : plus de "premier de la table".
@@ -71,6 +72,7 @@ export default function AuthGate({ kind, children }) {
   const [address, setAddress] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [linkMode, setLinkMode] = useState(false);
 
   const isVendor = kind === "vendor";
 
@@ -142,6 +144,35 @@ export default function AuthGate({ kind, children }) {
     setBusy(false);
   };
 
+  // Connexion Google (APK) : un seul appel a la fois, jamais de nouvelle tentative automatique.
+  const googleBusy = useRef(false);
+  const google = async () => {
+    if (googleBusy.current || busy) return;
+    if (linkMode && (!phone.trim() || !pin.trim())) {
+      setError("Numero et code secret obligatoires pour lier ton ancien compte");
+      return;
+    }
+    googleBusy.current = true;
+    setError("");
+    setBusy(true);
+    try {
+      const r = await signInWithGoogle(kind, linkMode ? { phone, pin } : undefined);
+      if (r && r.cancelled) {
+        // fenetre fermee par l'utilisateur : rien a afficher
+      } else if (!r || r.ok !== true) {
+        setError((r && r.error) || "Connexion Google impossible");
+      } else {
+        await saveToken(kind, r.token);
+        setOwner(r.owner_id);
+        setState("in");
+      }
+    } catch (e) {
+      setError("Connexion Google impossible");
+    }
+    setBusy(false);
+    googleBusy.current = false;
+  };
+
   if (state === "loading") {
     return (
       <View style={[s.screen, { justifyContent: "center" }]}>
@@ -150,6 +181,68 @@ export default function AuthGate({ kind, children }) {
     );
   }
   if (state === "in") return children(owner, logout);
+
+  // APK : connexion Google OBLIGATOIRE avant de creer ou d'utiliser un compte vendeur / livreur.
+  // Un ancien compte (telephone + code) est d'abord lie a Google, puis il ne sert plus qu'avec Google.
+  if (googleAvailable) {
+    return (
+      <ScrollView style={s.screen} contentContainerStyle={s.box} keyboardShouldPersistTaps="handled">
+        <Text style={s.brand}>MeGo {isVendor ? "Vendeur" : "Livreur"}</Text>
+        <Text style={s.sub}>
+          {linkMode ? "Lie ton ancien compte a Google" : "Connecte-toi avec Google pour continuer"}
+        </Text>
+
+        {linkMode ? (
+          <>
+            <TextInput
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="Numero de telephone de ton ancien compte"
+              keyboardType="phone-pad"
+              style={s.input}
+            />
+            <TextInput
+              value={pin}
+              onChangeText={(v) => setPin(v.replace(/[^0-9]/g, ""))}
+              placeholder="Code secret de ton ancien compte"
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={8}
+              style={s.input}
+            />
+            <Text style={s.hint}>
+              Une seule fois : ensuite tu te connectes uniquement avec Google, ton solde et tes commandes sont conserves.
+            </Text>
+          </>
+        ) : (
+          <Text style={s.hint}>
+            Pas besoin de numero ni de code : ton compte {isVendor ? "vendeur" : "livreur"} est cree avec ton compte Google.
+          </Text>
+        )}
+
+        {error ? <Text style={s.error}>{error}</Text> : null}
+
+        <Pressable onPress={google} disabled={busy} style={s.btn}>
+          {busy ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={s.btnTxt}>{linkMode ? "Lier et continuer avec Google" : "Continuer avec Google"}</Text>
+          )}
+        </Pressable>
+        <Pressable
+          onPress={() => {
+            setError("");
+            setLinkMode(!linkMode);
+          }}
+          style={{ marginTop: 16 }}
+        >
+          <Text style={s.link}>
+            {linkMode ? "Retour" : "J'ai deja un compte (telephone + code) : le lier a Google"}
+          </Text>
+        </Pressable>
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView style={s.screen} contentContainerStyle={s.box} keyboardShouldPersistTaps="handled">
