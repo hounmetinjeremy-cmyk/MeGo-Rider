@@ -6,18 +6,56 @@ import VendorApp from "./vendor/App";
 import RoleSelect from "./src/screens/RoleSelect";
 import { googleAvailable, googleIdentity } from "./src/lib/googleAuth";
 import { getIdentity } from "./src/lib/identity";
+import { loadToken } from "./src/lib/session";
+
+const API = "https://mprusmdpirucpcwqssfg.supabase.co";
+const KEY = "sb_publishable_OqgLY_ICZBtu1-C_yN_hCA_J4U2zluA";
+
+// Un compte deja connecte (jeton enregistre et encore valide) n'a pas a se reconnecter avec Google a chaque ouverture.
+async function hasValidSession() {
+  for (const kind of ["rider", "vendor"]) {
+    let t = null;
+    try {
+      t = await loadToken(kind);
+    } catch (e) {}
+    if (!t) continue;
+    try {
+      const r = await fetch(API + "/rest/v1/rpc/session_info", {
+        method: "POST",
+        headers: { apikey: KEY, Authorization: "Bearer " + KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ p_token: t }),
+      }).then((x) => x.json());
+      if (r && r.ok && r.kind === kind) return true;
+    } catch (e) {
+      return true; // pas de reseau : on laisse entrer, chaque espace reverifie sa session
+    }
+  }
+  return false;
+}
 
 // Ordre voulu : 1) connexion Google, 2) choix Vendeur / Livreur, 3) application du role.
 // Sur le web (pas de Google), on passe directement au choix du role.
 export default function AppShell() {
   const [role, setRole] = useState(null);
-  const [step, setStep] = useState(googleAvailable ? "google" : "role");
+  const [step, setStep] = useState(googleAvailable ? "boot" : "role");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    // Identite deja choisie dans cette session : on ne redemande pas le compte.
-    if (getIdentity()) setStep("role");
+    if (!googleAvailable) return undefined;
+    let alive = true;
+    (async () => {
+      // Identite deja choisie dans cette session, ou compte deja connecte : on ne redemande pas Google.
+      if (getIdentity()) {
+        if (alive) setStep("role");
+        return;
+      }
+      const ok = await hasValidSession();
+      if (alive) setStep(ok ? "role" : "google");
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const connect = useCallback(async () => {
@@ -44,6 +82,14 @@ export default function AppShell() {
   const switchRole = useCallback(() => {
     setRole(null);
   }, []);
+
+  if (step === "boot") {
+    return (
+      <View style={styles.gate}>
+        <ActivityIndicator color="#FFFFFF" size="large" />
+      </View>
+    );
+  }
 
   if (step === "google") {
     return (
