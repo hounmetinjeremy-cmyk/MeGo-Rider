@@ -1,10 +1,13 @@
 import { Platform } from "react-native";
 import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
-import { getIdentity, setIdentity } from "./identity";
 
 // Connexion Google dans l'APK. Scopes de base uniquement : openid, email, profile (valeur par defaut de la bibliotheque,
 // aucun scope supplementaire n'est demande). Le Web client ID est injecte a la construction de l'APK
 // (variable EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID, voir le workflow GitHub).
+//
+// Deux etapes, comme la creation d'une page Facebook :
+//  1) googleIdentity()   : l'utilisateur choisit son compte Google (rien n'est envoye au serveur).
+//  2) loginWithIdToken() : apres le choix "vendeur" ou "livreur", le serveur verifie le jeton et cree / retrouve le compte de ce role.
 const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || "";
 const SHOP = (process.env.EXPO_PUBLIC_SHOP_URL || "https://mego-shop.pages.dev").replace(/\/+$/, "");
 
@@ -12,6 +15,15 @@ export const googleAvailable = Platform.OS === "android" && !!WEB_CLIENT_ID;
 
 let configured = false;
 let inFlight = null;
+
+// Un seul appel a la fois, jamais de nouvelle tentative automatique.
+function once(fn) {
+  if (inFlight) return inFlight;
+  inFlight = fn().finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
+}
 
 function message(e) {
   const code = String((e && e.code) != null ? e.code : "");
@@ -23,24 +35,34 @@ function message(e) {
   return "Connexion Google impossible";
 }
 
-async function run(kind, link, presetToken) {
+// Etape 1 : choix du compte Google -> jeton d'identite.
+async function pick() {
   try {
-    let idToken = presetToken || "";
-    if (!idToken) {
-      if (!configured) {
-        GoogleSignin.configure({ webClientId: WEB_CLIENT_ID, offlineAccess: false });
-        configured = true;
-      }
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      try {
-        await GoogleSignin.signOut(); // force le choix du compte, evite un ancien etat bloque
-      } catch (e) {}
-      const res = await GoogleSignin.signIn();
-      idToken = res && (res.idToken || (res.data && res.data.idToken));
-      if (!idToken) return { ok: false, error: "Connexion Google impossible" };
+    if (!configured) {
+      GoogleSignin.configure({ webClientId: WEB_CLIENT_ID, offlineAccess: false });
+      configured = true;
     }
+    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    try {
+      await GoogleSignin.signOut(); // force le choix du compte, evite un ancien etat bloque
+    } catch (e) {}
 
-    // Un seul envoi au serveur, delai maximum 15 s, aucune nouvelle tentative automatique.
+    const res = await GoogleSignin.signIn();
+    const idToken = res && (res.idToken || (res.data && res.data.idToken));
+    if (!idToken) return { ok: false, error: "Connexion Google impossible" };
+    const user = (res && (res.user || (res.data && res.data.user))) || {};
+    return { ok: true, idToken, email: user.email || "", name: user.name || "" };
+  } catch (e) {
+    const m = message(e);
+    if (m === null) return { ok: false, cancelled: true };
+    return { ok: false, error: m };
+  }
+}
+
+// Etape 2 : le serveur verifie le jeton Google et cree / retrouve le compte du role choisi.
+async function exchange(kind, idToken, link) {
+  try {
+    // Un seul envoi, delai maximum 15 s.
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 15000);
     let d = null;
@@ -58,82 +80,44 @@ async function run(kind, link, presetToken) {
       clearTimeout(timer);
     }
     if (!d || d.ok !== true || !d.token) {
-      try {
-        await GoogleSignin.signOut();
-      } catch (e) {}
-      return { ok: false, error: (d && d.error) || "Connexion Google refusee" };
+      return { ok: false, error: (d && d.error) || "Connexion Google refusee", code: d && d.code };
     }
     return { ok: true, token: d.token, owner_id: d.owner_id, created: !!d.created, linked: !!d.linked };
   } catch (e) {
-    const m = message(e);
-    if (m === null) return { ok: false, cancelled: true };
     if (e && e.name === "AbortError") return { ok: false, error: "Le serveur ne repond pas, reessaie plus tard" };
-    return { ok: false, error: m };
+    return { ok: false, error: "Connexion Google impossible" };
   }
 }
 
-/**
- * Renvoie { ok, token, owner_id } | { ok:false, error } | { ok:false, cancelled:true }. Un seul appel a la fois.
- * link = { phone, pin } : lie un ancien compte (telephone + code) a l'identite Google.
- */
-export function signInWithGoogle(kind, link) {
-  if (!googleAvailable) return Promise.resolve({ ok: false, error: "Connexion Google indisponible" });
-  if (kind !== "vendor" && kind !== "rider") return Promise.resolve({ ok: false, error: "Type de compte invalide" });
-  if (inFlight) return inFlight;
-  inFlight = run(kind, link).finally(() => {
-    inFlight = null;
-  });
-  return inFlight;
-}
+const NO = { ok: false, error: "Connexion Google indisponible" };
+const validKind = (k) => k === "vendor" || k === "rider";
 
-/**
- * Etape 1 (avant le choix du role) : choisit le compte Google et garde l'identite en memoire.
- * Aucun envoi au serveur ici : le role n'est pas encore connu.
- * Renvoie { ok, id_token, email, name } | { ok:false, error } | { ok:false, cancelled:true }.
- */
-let identityInFlight = null;
+/** Renvoie { ok, idToken, email, name } | { ok:false, error } | { ok:false, cancelled:true }. */
 export function googleIdentity() {
-  if (!googleAvailable) return Promise.resolve({ ok: false, error: "Connexion Google indisponible" });
-  if (identityInFlight) return identityInFlight;
-  identityInFlight = (async () => {
-    try {
-      if (!configured) {
-        GoogleSignin.configure({ webClientId: WEB_CLIENT_ID, offlineAccess: false });
-        configured = true;
-      }
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      try {
-        await GoogleSignin.signOut(); // force le choix du compte, evite un ancien etat bloque
-      } catch (e) {}
-      const res = await GoogleSignin.signIn();
-      const idToken = res && (res.idToken || (res.data && res.data.idToken));
-      if (!idToken) return { ok: false, error: "Connexion Google impossible" };
-      const user = (res && res.user) || (res && res.data && res.data.user) || {};
-      const v = { id_token: idToken, email: user.email || "", name: user.name || "" };
-      setIdentity(v);
-      return { ok: true, id_token: v.id_token, email: v.email, name: v.name };
-    } catch (e) {
-      const m = message(e);
-      if (m === null) return { ok: false, cancelled: true };
-      return { ok: false, error: m };
-    }
-  })().finally(() => {
-    identityInFlight = null;
-  });
-  return identityInFlight;
+  if (!googleAvailable) return Promise.resolve(NO);
+  return once(pick);
 }
 
-/**
- * Etape 2 (apres le choix du role) : ouvre la session du role avec l'identite deja choisie,
- * sans redemander le compte Google.
- */
-export function loginWithIdentity(kind, link) {
-  if (kind !== "vendor" && kind !== "rider") return Promise.resolve({ ok: false, error: "Type de compte invalide" });
-  const id = getIdentity();
-  if (!id || !id.id_token) return Promise.resolve({ ok: false, error: "Identite Google absente" });
-  if (inFlight) return inFlight;
-  inFlight = run(kind, link, id.id_token).finally(() => {
-    inFlight = null;
+/** idToken deja obtenu avec googleIdentity(). link = { phone, pin } lie un ancien compte (telephone + code). */
+export function loginWithIdToken(kind, idToken, link) {
+  if (!googleAvailable) return Promise.resolve(NO);
+  if (!validKind(kind) || !idToken) return Promise.resolve({ ok: false, error: "Connexion Google impossible" });
+  return once(() => exchange(kind, idToken, link));
+}
+
+/** Les deux etapes d'un coup (sans passer par l'ecran de choix). */
+export function signInWithGoogle(kind, link) {
+  if (!googleAvailable) return Promise.resolve(NO);
+  if (!validKind(kind)) return Promise.resolve({ ok: false, error: "Type de compte invalide" });
+  return once(async () => {
+    const p = await pick();
+    if (!p.ok) return p;
+    const r = await exchange(kind, p.idToken, link);
+    if (!r.ok) {
+      try {
+        await GoogleSignin.signOut();
+      } catch (e) {}
+    }
+    return r;
   });
-  return inFlight;
 }
