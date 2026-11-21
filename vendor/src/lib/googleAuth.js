@@ -1,12 +1,13 @@
 import { Platform } from "react-native";
 import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
+import { setIdentity } from "./identity";
 
 // Connexion Google dans l'APK. Scopes de base uniquement : openid, email, profile (valeur par defaut de la bibliotheque,
 // aucun scope supplementaire n'est demande). Le Web client ID est injecte a la construction de l'APK
 // (variable EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID, voir le workflow GitHub).
 //
 // Deux etapes, comme la creation d'une page Facebook :
-//  1) googleIdentity()   : l'utilisateur choisit son compte Google (rien n'est envoye au serveur).
+//  1) googleIdentity()   : l'utilisateur choisit son compte Google (rien n'est envoye au serveur). L'identite est gardee en memoire.
 //  2) loginWithIdToken() : apres le choix "vendeur" ou "livreur", le serveur verifie le jeton et cree / retrouve le compte de ce role.
 const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || "";
 const SHOP = (process.env.EXPO_PUBLIC_SHOP_URL || "https://mego-shop.pages.dev").replace(/\/+$/, "");
@@ -92,10 +93,14 @@ async function exchange(kind, idToken, link) {
 const NO = { ok: false, error: "Connexion Google indisponible" };
 const validKind = (k) => k === "vendor" || k === "rider";
 
-/** Renvoie { ok, idToken, email, name } | { ok:false, error } | { ok:false, cancelled:true }. */
+/** Renvoie { ok, idToken, email, name } | { ok:false, error } | { ok:false, cancelled:true }. Garde l'identite en memoire. */
 export function googleIdentity() {
   if (!googleAvailable) return Promise.resolve(NO);
-  return once(pick);
+  return once(async () => {
+    const r = await pick();
+    if (r.ok) setIdentity({ idToken: r.idToken, email: r.email, name: r.name });
+    return r;
+  });
 }
 
 /** idToken deja obtenu avec googleIdentity(). link = { phone, pin } lie un ancien compte (telephone + code). */
