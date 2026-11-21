@@ -10,6 +10,7 @@ import ChatWidget from "./src/components/ChatWidget";
 import { readSlug, loadShop, placeOrder, payOrder } from "./src/lib/shop";
 import DiscoveryScreen from "./src/screens/DiscoveryScreen";
 import { googleClientId } from "./src/lib/googleWeb";
+import { injectedToken, customerToken, saveCustomerToken } from "./src/lib/wallet";
 
 const VENDOR_APP = "https://mego-vendor.pages.dev";
 const RIDER_APP = "https://mego-rider.pages.dev";
@@ -57,44 +58,6 @@ function getPosition() {
       resolve(none);
     }
   });
-}
-
-// Compte vendeur / livreur transmis par l'APK (injecte dans la page) ou par l'appli vendeur (fragment #mego=, jamais envoye au serveur).
-function readAccountToken() {
-  try {
-    if (typeof window === "undefined") return "";
-    if (window.__MEGO_TOKEN__) return String(window.__MEGO_TOKEN__);
-    const m = /[#&]mego=([^&]+)/.exec(window.location.hash || "");
-    if (m) {
-      const t = decodeURIComponent(m[1]);
-      try {
-        window.sessionStorage.setItem("mego_acct_token", t);
-      } catch (e) {}
-      try {
-        window.history.replaceState(null, "", window.location.pathname + window.location.search);
-      } catch (e) {}
-      return t;
-    }
-    return window.sessionStorage.getItem("mego_acct_token") || "";
-  } catch (e) {
-    return "";
-  }
-}
-
-// Client du lien web, connecte avec Google.
-function readCustomerToken() {
-  try {
-    return window.localStorage.getItem("mego_cust_token") || "";
-  } catch (e) {
-    return "";
-  }
-}
-
-function saveCustomerToken(t) {
-  try {
-    if (t) window.localStorage.setItem("mego_cust_token", t);
-    else window.localStorage.removeItem("mego_cust_token");
-  } catch (e) {}
 }
 
 /**
@@ -154,8 +117,9 @@ function ShopApp() {
   const [payHint, setPayHint] = useState(false);
   const [serverUrl, setServerUrl] = useState("");
   const [chatOn, setChatOn] = useState(false);
-  const [acctToken] = useState(readAccountToken);
-  const [custToken, setCustToken] = useState(readCustomerToken);
+  // Memes jetons que le portefeuille (src/lib/wallet.js) : compte de l'APK / de l'appli vendeur, sinon client connecte avec Google.
+  const [acctToken] = useState(injectedToken);
+  const [custToken, setCustToken] = useState(customerToken);
   // Lien web : connexion Google obligatoire avant la validation. Jamais pour l'APK / un vendeur / un livreur deja connecte.
   const needGoogle = !!googleClientId && !acctToken && !custToken;
 
