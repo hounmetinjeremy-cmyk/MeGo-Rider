@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 
 // Identite Google de la session en cours (jeton d'identite + e-mail), gardee en MEMOIRE uniquement, jamais stockee.
 // Le meme objet est partage par toutes les copies de ce fichier (racine et vendor) via globalThis.
-// Le jeton Google est valable environ 1 h : on le considere expire apres 50 minutes.
+// Elle reste valable 24 h. Le jeton Google lui-meme dure ~1 h : googleAuth.js le renouvelle sans rien afficher.
 const G = typeof globalThis !== "undefined" ? globalThis : {};
 if (!G.__MEGO_ID__) G.__MEGO_ID__ = { value: null, subs: [] };
 const S = G.__MEGO_ID__;
-const MAX_AGE = 50 * 60 * 1000;
+const MAX_AGE = 24 * 60 * 60 * 1000;
 
 export function getIdentity() {
   const v = S.value;
