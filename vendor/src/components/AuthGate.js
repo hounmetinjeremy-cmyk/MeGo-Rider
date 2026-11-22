@@ -74,9 +74,11 @@ export default function AuthGate({ kind, children }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [linkMode, setLinkMode] = useState(false);
+  const [otherTok, setOtherTok] = useState(null);
   const identity = useIdentity();
 
   const isVendor = kind === "vendor";
+  const otherKind = isVendor ? "rider" : "vendor";
 
   useEffect(() => {
     let alive = true;
@@ -104,6 +106,19 @@ export default function AuthGate({ kind, children }) {
       alive = false;
     };
   }, [kind]);
+
+  // Session de l'autre espace (vendeur <-> livreur) : permet de basculer sans redemander Google.
+  useEffect(() => {
+    let alive = true;
+    loadToken(otherKind)
+      .then((t) => {
+        if (alive) setOtherTok(t || null);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [otherKind]);
 
   const logout = useCallback(async () => {
     const t = getToken(kind);
@@ -147,7 +162,8 @@ export default function AuthGate({ kind, children }) {
   };
 
   // Connexion Google (APK) : un seul appel a la fois, jamais de nouvelle tentative automatique.
-  // Si l'utilisateur s'est deja connecte avec Google au demarrage (identity), on cree / retrouve directement son compte de ce role.
+  // 1) Si l'autre espace est deja connecte (compte Google), on bascule / on cree cet espace sans redemander Google.
+  // 2) Sinon, si l'utilisateur s'est deja connecte avec Google au demarrage (identity), on cree / retrouve son compte de ce role.
   const googleBusy = useRef(false);
   const google = async () => {
     if (googleBusy.current || busy) return;
@@ -159,26 +175,43 @@ export default function AuthGate({ kind, children }) {
     setError("");
     setBusy(true);
     try {
-      const link = linkMode ? { phone, pin } : undefined;
-      const r = identity
-        ? await loginWithIdToken(kind, identity.idToken, link)
-        : await signInWithGoogle(kind, link);
-      if (r && r.cancelled) {
-        // fenetre fermee par l'utilisateur : rien a afficher
-      } else if (!r || r.ok !== true) {
-        if (identity && r && r.code === "invalid_token") {
-          setIdentity(null); // jeton Google expire : on redemande la connexion Google
-          setError("Ta connexion Google a expire : reconnecte-toi.");
+      if (!linkMode && !identity && otherTok) {
+        const r = await rpc("switch_role", { p_token: otherTok, p_kind: kind });
+        if (r && r.ok === true) {
+          await saveToken(kind, r.token);
+          setOwner(r.owner_id);
+          setState("in");
         } else {
-          setError((r && r.error) || "Connexion Google impossible");
+          // l'autre espace n'est pas lie a Google, ou sa session a expire : on passera par Google au prochain appui
+          setOtherTok(null);
+          setError(
+            r && r.code === "needs_google"
+              ? "Connecte-toi avec Google pour creer cet espace."
+              : "Reconnecte-toi avec Google pour continuer."
+          );
         }
       } else {
-        await saveToken(kind, r.token);
-        setOwner(r.owner_id);
-        setState("in");
+        const link = linkMode ? { phone, pin } : undefined;
+        const r = identity
+          ? await loginWithIdToken(kind, identity.idToken, link)
+          : await signInWithGoogle(kind, link);
+        if (r && r.cancelled) {
+          // fenetre fermee par l'utilisateur : rien a afficher
+        } else if (!r || r.ok !== true) {
+          if (identity && r && r.code === "invalid_token") {
+            setIdentity(null); // jeton Google expire : on redemande la connexion Google
+            setError("Ta connexion Google a expire : reconnecte-toi.");
+          } else {
+            setError((r && r.error) || "Connexion Google impossible");
+          }
+        } else {
+          await saveToken(kind, r.token);
+          setOwner(r.owner_id);
+          setState("in");
+        }
       }
     } catch (e) {
-      setError("Connexion Google impossible");
+      setError("Connexion impossible, verifie internet");
     }
     setBusy(false);
     googleBusy.current = false;
@@ -197,6 +230,7 @@ export default function AuthGate({ kind, children }) {
   // Un ancien compte (telephone + code) est d'abord lie a Google, puis il ne sert plus qu'avec Google.
   if (googleAvailable) {
     const role = isVendor ? "vendeur" : "livreur";
+    const switching = !linkMode && !identity && !!otherTok;
     return (
       <ScrollView style={s.screen} contentContainerStyle={s.box} keyboardShouldPersistTaps="handled">
         <Text style={s.brand}>MeGo {isVendor ? "Vendeur" : "Livreur"}</Text>
@@ -205,6 +239,8 @@ export default function AuthGate({ kind, children }) {
             ? "Lie ton ancien compte a Google"
             : identity
             ? "Connecte avec " + (identity.email || "Google")
+            : switching
+            ? "Passe d'un espace a l'autre"
             : "Connecte-toi avec Google pour continuer"}
         </Text>
 
@@ -234,6 +270,8 @@ export default function AuthGate({ kind, children }) {
           <Text style={s.hint}>
             {identity
               ? "Ton espace " + role + " est cree automatiquement avec ce compte Google."
+              : switching
+              ? "Ton espace " + role + " est cree ou retrouve avec le meme compte Google, sans te reconnecter."
               : "Pas besoin de numero ni de code : ton compte " + role + " est cree avec ton compte Google."}
           </Text>
         )}
@@ -245,12 +283,14 @@ export default function AuthGate({ kind, children }) {
             <ActivityIndicator color="#fff" />
           ) : (
             <Text style={s.btnTxt}>
-              {identity
-                ? linkMode
+              {linkMode
+                ? identity || switching
                   ? "Lier et continuer"
-                  : "Continuer en tant que " + role
-                : linkMode
-                ? "Lier et continuer avec Google"
+                  : "Lier et continuer avec Google"
+                : identity
+                ? "Continuer en tant que " + role
+                : switching
+                ? "Passer en tant que " + role
                 : "Continuer avec Google"}
             </Text>
           )}
