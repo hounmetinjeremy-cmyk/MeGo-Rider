@@ -16,6 +16,7 @@ import {
   deletePayoutMethod,
   fetchWithdrawals,
   requestWithdrawal,
+  getRider,
 } from "../lib/db";
 
 const METHODS = [
@@ -44,8 +45,10 @@ function formatDate(iso) {
  * - ajoute / supprime un moyen de paiement
  * - demande un retrait (withdrawals) et affiche l'historique
  */
-export default function BankScreen({ rider, onBack, onChanged }) {
-  const riderId = rider ? rider.id : null;
+export default function BankScreen({ rider, riderId: riderIdProp, onBack, onChanged }) {
+  // App.js passe riderId ; l'ancien appel passait rider : on accepte les deux.
+  const riderId = rider ? rider.id : riderIdProp || null;
+  const [balances, setBalances] = useState(null);
   const [methods, setMethods] = useState([]);
   const [withdrawals, setWithdrawals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -62,12 +65,19 @@ export default function BankScreen({ rider, onBack, onChanged }) {
     if (!riderId) return;
     try {
       setError(null);
-      const [m, w] = await Promise.all([
+      const [m, w, r] = await Promise.all([
         fetchPayoutMethods(riderId),
         fetchWithdrawals(riderId),
+        getRider(riderId),
       ]);
       setMethods(m || []);
       setWithdrawals(w || []);
+      if (r) {
+        setBalances({
+          pending: Number(r.pending_balance || 0),
+          withdrawable: Number(r.wallet_balance || 0),
+        });
+      }
     } catch (e) {
       setError(e.message || "Erreur de chargement");
     } finally {
@@ -121,11 +131,23 @@ export default function BankScreen({ rider, onBack, onChanged }) {
     [load]
   );
 
+  // Le retrait n'utilise que le « Solde retirable » (wallet_balance). Le « Solde en attente » reste bloqué.
+  const pendingBalance = balances
+    ? balances.pending
+    : Number((rider && rider.pending_balance) || 0);
+  const balance = balances
+    ? balances.withdrawable
+    : Number((rider && (rider.wallet_balance != null ? rider.wallet_balance : rider.wallet)) || 0);
+
   const handleWithdraw = useCallback(async () => {
     if (!riderId) return;
     const value = Number(String(amount).replace(/[^0-9.]/g, ""));
     if (!value || value <= 0) {
       setError("Montant invalide");
+      return;
+    }
+    if (value > balance) {
+      setError("Montant supérieur à ton « Solde retirable »");
       return;
     }
     if (methods.length === 0) {
@@ -144,9 +166,7 @@ export default function BankScreen({ rider, onBack, onChanged }) {
     } finally {
       setBusy(false);
     }
-  }, [riderId, amount, methods, load, onChanged]);
-
-  const balance = rider ? Number(rider.wallet || 0) : 0;
+  }, [riderId, amount, balance, methods, load, onChanged]);
 
   return (
     <View className="flex-1 bg-gray-50">
@@ -160,9 +180,12 @@ export default function BankScreen({ rider, onBack, onChanged }) {
         }
       >
         <View className="mb-4 rounded-xl bg-white p-4 shadow-sm">
-          <Text className="text-[12px] text-muted">Solde disponible</Text>
+          <Text className="text-[12px] text-muted">Solde retirable</Text>
           <Text className="mt-1 text-[24px] font-bold text-ink">
             {formatMoney(balance)}
+          </Text>
+          <Text className="mt-2 text-[12px] text-muted">
+            Solde en attente : {formatMoney(pendingBalance)} (bloqué tant que la livraison n'est pas confirmée)
           </Text>
           <View className="mt-3 flex-row items-center">
             <TextInput
@@ -268,7 +291,7 @@ export default function BankScreen({ rider, onBack, onChanged }) {
             disabled={busy}
           >
             <Text className="text-[14px] font-bold text-white">
-              {busy ? "Enregistrement..." : "Enregistrer"}
+            {busy ? "Enregistrement..." : "Enregistrer"}
             </Text>
           </Pressable>
         </View>
