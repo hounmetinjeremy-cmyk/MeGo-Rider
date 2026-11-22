@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -26,12 +28,15 @@ jobs:
       - name: Expo prebuild (android)
         run: npx expo prebuild --platform android --clean --no-install
 
+      - name: SHA-1 de la cle de signature (a copier dans Google Cloud Console)
+        run: keytool -list -v -keystore android/app/debug.keystore -alias androiddebugkey -storepass android -keypass android | grep -E "SHA1|SHA256"
+
       - name: Build release APK
         run: cd android && chmod +x gradlew && ./gradlew assembleRelease --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: mego-rider-apk
+          name: mego-apk
           path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
