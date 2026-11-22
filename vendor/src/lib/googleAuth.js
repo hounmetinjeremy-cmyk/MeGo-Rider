@@ -1,16 +1,18 @@
 import { Platform } from "react-native";
 import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
-import { setIdentity } from "./identity";
+import { getIdentity, setIdentity } from "./identity";
 
 // Connexion Google dans l'APK. Scopes de base uniquement : openid, email, profile (valeur par defaut de la bibliotheque,
 // aucun scope supplementaire n'est demande). Le Web client ID est injecte a la construction de l'APK
 // (variable EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID, voir le workflow GitHub).
 //
 // Deux etapes, comme la creation d'une page Facebook :
-//  1) googleIdentity()   : l'utilisateur choisit son compte Google (rien n'est envoye au serveur). L'identite est gardee en memoire.
+//  1) googleIdentity()   : l'utilisateur choisit son compte Google (rien n'est envoye au serveur). L'identite est gardee en memoire 24 h.
 //  2) loginWithIdToken() : apres le choix "vendeur" ou "livreur", le serveur verifie le jeton et cree / retrouve le compte de ce role.
+//     Le jeton Google dure ~1 h : au-dela de 40 min on le renouvelle sans rien afficher a l'utilisateur.
 const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || "";
 const SHOP = (process.env.EXPO_PUBLIC_SHOP_URL || "https://mego-shop.pages.dev").replace(/\/+$/, "");
+const STALE_MS = 40 * 60 * 1000;
 
 export const googleAvailable = Platform.OS === "android" && !!WEB_CLIENT_ID;
 
@@ -36,13 +38,17 @@ function message(e) {
   return "Connexion Google impossible";
 }
 
+function configure() {
+  if (!configured) {
+    GoogleSignin.configure({ webClientId: WEB_CLIENT_ID, offlineAccess: false });
+    configured = true;
+  }
+}
+
 // Etape 1 : choix du compte Google -> jeton d'identite.
 async function pick() {
   try {
-    if (!configured) {
-      GoogleSignin.configure({ webClientId: WEB_CLIENT_ID, offlineAccess: false });
-      configured = true;
-    }
+    configure();
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
     try {
       await GoogleSignin.signOut(); // force le choix du compte, evite un ancien etat bloque
@@ -57,6 +63,23 @@ async function pick() {
     const m = message(e);
     if (m === null) return { ok: false, cancelled: true };
     return { ok: false, error: m };
+  }
+}
+
+// Renouvelle en silence le jeton Google s'il a plus de 40 min (aucune fenetre). null = impossible, il faut se reconnecter.
+async function freshToken(idToken) {
+  const id = getIdentity();
+  if (!id || Date.now() - id.at < STALE_MS) return idToken;
+  try {
+    configure();
+    const res = await GoogleSignin.signInSilently();
+    const t = res && (res.idToken || (res.data && res.data.idToken));
+    if (!t) return null;
+    const user = (res && (res.user || (res.data && res.data.user))) || {};
+    setIdentity({ idToken: t, email: user.email || id.email, name: user.name || id.name });
+    return t;
+  } catch (e) {
+    return null;
   }
 }
 
@@ -107,7 +130,11 @@ export function googleIdentity() {
 export function loginWithIdToken(kind, idToken, link) {
   if (!googleAvailable) return Promise.resolve(NO);
   if (!validKind(kind) || !idToken) return Promise.resolve({ ok: false, error: "Connexion Google impossible" });
-  return once(() => exchange(kind, idToken, link));
+  return once(async () => {
+    const t = await freshToken(idToken);
+    if (!t) return { ok: false, error: "Ta connexion Google a expire : reconnecte-toi.", code: "invalid_token" };
+    return exchange(kind, t, link);
+  });
 }
 
 /** Les deux etapes d'un coup (sans passer par l'ecran de choix). */
