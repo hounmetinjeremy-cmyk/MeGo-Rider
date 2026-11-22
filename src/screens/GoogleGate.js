@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator, StatusBar } from "react-native";
 
 // Ecran d'accueil de l'APK : connexion Google (fond blanc). Affiche ce que MeGo permet de faire et un seul bouton.
+// Les styles du bouton sont STATIQUES (pas de fonction dans `style`) : avec NativeWind, un style en fonction est ignore.
 const GREEN = "#0a7d4b";
 const INK = "#0B1220";
 const MUTED = "#5B6675";
@@ -50,17 +51,18 @@ export default function GoogleGate({ onPress, busy, error }) {
         <Pressable
           onPress={onPress}
           disabled={busy}
-          style={({ pressed }) => [s.gbtn, (pressed || busy) && s.gbtnOn]}
+          android_ripple={{ color: "#E4F4EA" }}
+          style={busy ? [s.gbtn, s.gbtnOff] : s.gbtn}
         >
           {busy ? (
             <ActivityIndicator color={GREEN} />
           ) : (
-            <>
+            <View style={s.gRow}>
               <View style={s.gIcon}>
                 <Text style={s.gLetter}>G</Text>
               </View>
               <Text style={s.gTxt}>Continuer avec Google</Text>
-            </>
+            </View>
           )}
         </Pressable>
         <Text style={s.legal}>🔒 On accède seulement à ton nom et à ton e-mail.</Text>
@@ -117,12 +119,12 @@ const s = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderWidth: 1.5,
     borderColor: "#DADCE0",
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     elevation: 2,
   },
-  gbtnOn: { opacity: 0.7 },
+  gbtnOff: { opacity: 0.7 },
+  gRow: { flexDirection: "row", alignItems: "center", justifyContent: "center" },
   gIcon: {
     width: 26,
     height: 26,
