@@ -46,13 +46,15 @@ function configure() {
 }
 
 // Etape 1 : choix du compte Google -> jeton d'identite.
-async function pick() {
+// force = true : on se deconnecte d'abord pour reafficher le choix du compte (changer de compte). Sinon on va droit au but (plus rapide).
+async function pick(force) {
   try {
     configure();
-    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-    try {
-      await GoogleSignin.signOut(); // force le choix du compte, evite un ancien etat bloque
-    } catch (e) {}
+    if (force) {
+      try {
+        await GoogleSignin.signOut();
+      } catch (e) {}
+    }
 
     const res = await GoogleSignin.signIn();
     const idToken = res && (res.idToken || (res.data && res.data.idToken));
@@ -120,7 +122,7 @@ const validKind = (k) => k === "vendor" || k === "rider";
 export function googleIdentity() {
   if (!googleAvailable) return Promise.resolve(NO);
   return once(async () => {
-    const r = await pick();
+    const r = await pick(false);
     if (r.ok) setIdentity({ idToken: r.idToken, email: r.email, name: r.name });
     return r;
   });
@@ -137,12 +139,12 @@ export function loginWithIdToken(kind, idToken, link) {
   });
 }
 
-/** Les deux etapes d'un coup (sans passer par l'ecran de choix). */
+/** Les deux etapes d'un coup (sans passer par l'ecran de choix). Reaffiche le choix du compte Google. */
 export function signInWithGoogle(kind, link) {
   if (!googleAvailable) return Promise.resolve(NO);
   if (!validKind(kind)) return Promise.resolve({ ok: false, error: "Type de compte invalide" });
   return once(async () => {
-    const p = await pick();
+    const p = await pick(true);
     if (!p.ok) return p;
     const r = await exchange(kind, p.idToken, link);
     if (!r.ok) {
