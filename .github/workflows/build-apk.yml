@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
+      EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: 358155489243-ptgo7u8vjcammoitgi92lrvgphoc30rj.apps.googleusercontent.com
     steps:
       - uses: actions/checkout@v4
 
