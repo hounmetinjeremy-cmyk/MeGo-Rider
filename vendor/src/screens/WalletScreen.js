@@ -70,6 +70,9 @@ export default function WalletScreen({ vendor, onMenuPress, onRefresh }) {
   const [amount, setAmount] = useState("");
   const [saving, setSaving] = useState(false);
   const [depositUrl, setDepositUrl] = useState("");
+  // « Solde en attente » : bloqué jusqu'à la confirmation de livraison ; « Solde retirable » : seul solde utilisable pour Retirer.
+  const pendingBalance = Number((vendor && vendor.pending_balance) || 0);
+  const withdrawableBalance = Number((vendor && vendor.wallet_balance) || 0);
 
   const load = useCallback(async () => {
     if (!vendor || !vendor.id) return;
@@ -116,6 +119,10 @@ export default function WalletScreen({ vendor, onMenuPress, onRefresh }) {
       setError("Montant invalide");
       return;
     }
+    if (value > withdrawableBalance) {
+      setError("Montant supérieur à ton « Solde retirable »");
+      return;
+    }
     const method = methods.find((m) => m.is_default) || methods[0];
     if (!method) {
       setError("Ajoutez d'abord un moyen de paiement dans Compte bancaire (menu)");
@@ -154,11 +161,19 @@ export default function WalletScreen({ vendor, onMenuPress, onRefresh }) {
           />
         }
       >
+        <View className="mb-4 rounded-xl bg-chip p-3">
+          <Text className="text-[12px] text-ink">
+            Le « Solde en attente » est bloqué tant que la livraison n'est pas confirmée.
+          </Text>
+        </View>
+
         <View className="mb-4 rounded-2xl bg-navy p-5">
-          <Text className="text-[12px] text-white">Solde disponible</Text>
-          <Text className="mt-1 text-[28px] font-bold text-white">{money(vendor ? vendor.wallet_balance : 0)}</Text>
+          <Text className="text-[12px] text-white">Solde en attente</Text>
+          <Text className="mt-1 text-[22px] font-bold text-white">{money(pendingBalance)}</Text>
+          <Text className="mt-4 text-[12px] text-white">Solde retirable</Text>
+          <Text className="mt-1 text-[28px] font-bold text-white">{money(withdrawableBalance)}</Text>
           <Text className="mt-2 text-[12px] text-white">
-            Sert à payer dans les boutiques des autres, et se retire par Mobile Money.
+            Le « Solde retirable » sert à payer dans les boutiques des autres, et se retire par Mobile Money.
           </Text>
         </View>
 
