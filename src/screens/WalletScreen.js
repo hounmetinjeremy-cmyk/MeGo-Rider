@@ -19,6 +19,11 @@ export default function WalletScreen({
   onMenuPress,
 }) {
   const delivered = orders.filter((o) => o.status === "DELIVERED");
+  // « Solde en attente » : bloqué jusqu'à la confirmation de livraison ; « Solde retirable » : seul solde utilisable pour Retirer.
+  const pendingBalance = rider ? Number(rider.pending_balance || 0) : 0;
+  const withdrawableBalance = rider
+    ? Number(rider.wallet_balance != null ? rider.wallet_balance : rider.wallet || 0)
+    : 0;
   const [depositUrl, setDepositUrl] = useState("");
 
   // Depot : la page "Mon portefeuille" de la boutique s'ouvre DANS l'application (bouton Retour), sans Chrome.
@@ -59,10 +64,21 @@ export default function WalletScreen({
           />
         }
       >
+        <View className="mb-4 flex-row items-start rounded-xl bg-amber-50 p-3">
+          <Icon name="wallet" size={16} color={colors.primary} />
+          <Text className="ml-2 flex-1 text-[12px] text-ink">
+            Le « Solde en attente » est bloqué tant que la livraison n'est pas confirmée.
+          </Text>
+        </View>
+
         <View className="rounded-xl bg-navy p-5">
-          <Text className="text-[12px] text-white/70">Solde disponible</Text>
+          <Text className="text-[12px] text-white/70">Solde en attente</Text>
+          <Text className="mt-1 text-[22px] font-bold text-white/80">
+            {formatMoney(pendingBalance)}
+          </Text>
+          <Text className="mt-4 text-[12px] text-white/70">Solde retirable</Text>
           <Text className="mt-1 text-[28px] font-bold text-white">
-            {formatMoney(rider ? rider.wallet : 0)}
+            {formatMoney(withdrawableBalance)}
           </Text>
           <View className="mt-4 flex-row items-center">
             <Icon name="wallet" size={16} color={colors.primary} />
@@ -77,7 +93,7 @@ export default function WalletScreen({
             <Text className="text-[14px] font-bold text-white">Déposer de l'argent</Text>
           </Pressable>
           <Text className="mt-2 text-[11px] text-white/70">
-            Ce solde sert à payer dans les boutiques. S'il est insuffisant, dépose de l'argent par Mobile Money.
+            Le « Solde retirable » sert à payer dans les boutiques et à retirer. S'il est insuffisant, dépose de l'argent par Mobile Money.
           </Text>
         </View>
 
