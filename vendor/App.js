@@ -12,6 +12,11 @@ import EarningsScreen from "./src/screens/EarningsScreen";
 import WalletScreen from "./src/screens/WalletScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import ZonesScreen from "./src/screens/ZonesScreen";
+import BankScreen from "./src/screens/BankScreen";
+import ScheduleScreen from "./src/screens/ScheduleScreen";
+import LanguageScreen from "./src/screens/LanguageScreen";
+import HelpScreen from "./src/screens/HelpScreen";
+import AboutScreen from "./src/screens/AboutScreen";
 import MarketplaceScreen from "./src/screens/MarketplaceScreen";
 import useVendor from "./src/hooks/useVendor";
 
@@ -70,7 +75,7 @@ function VendorApp({ vendorId, onLogout }) {
       case "products":
         return <ProductsScreen vendor={vendor} onMenuPress={openDrawer} onBack={goBack} />;
       case "wallet":
-        return <WalletScreen vendor={vendor} onRefresh={reload} onMenuPress={openDrawer} />;
+        return <WalletScreen vendor={vendor} onRefresh={reload} onMenuPress={openDrawer} onGoBank={() => setActiveNav("bank")} />;
       case "earnings":
         return (
           <EarningsScreen
@@ -86,6 +91,16 @@ function VendorApp({ vendorId, onLogout }) {
         return <ZonesScreen vendor={vendor} onMenuPress={openDrawer} onBack={goBack} />;
       case "profile":
         return <ProfileScreen vendor={vendor} onMenuPress={openDrawer} onBack={goBack} />;
+      case "bank":
+        return <BankScreen vendor={vendor} onMenuPress={openDrawer} onBack={goBack} />;
+      case "schedule":
+        return <ScheduleScreen vendor={vendor} onMenuPress={openDrawer} onBack={goBack} />;
+      case "language":
+        return <LanguageScreen vendor={vendor} onMenuPress={openDrawer} onBack={goBack} />;
+      case "help":
+        return <HelpScreen vendor={vendor} onMenuPress={openDrawer} onBack={goBack} />;
+      case "about":
+        return <AboutScreen vendor={vendor} onMenuPress={openDrawer} onBack={goBack} />;
       default:
         return <DashboardScreen vendor={vendor} orders={orders} loading={loading} error={error} onRefresh={reload} onMenuPress={openDrawer} onBack={goBack} />;
     }

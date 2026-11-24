@@ -134,6 +134,7 @@ function RiderApp({ riderId: accountRiderId, onLogout }) {
         refreshing={refreshing}
         onRefresh={handleRefresh}
         onMenuPress={openDrawer}
+        onGoBank={() => setActiveNav("banking")}
       />
     );
   } else if (activeNav === "earnings") {

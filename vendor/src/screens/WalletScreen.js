@@ -6,10 +6,11 @@ import ShopWebView from "../components/ShopWebView";
 import { Card, Button, Input, Badge } from "../components/Kit";
 import colors from "../theme/colors";
 import { listWithdrawals, requestWithdrawal, listPayoutMethods } from "../lib/db";
+import { supabase } from "../lib/supabaseClient";
 import { getToken } from "../lib/session";
 
 const SHOP = (process.env.EXPO_PUBLIC_SHOP_URL || "https://mego-shop.pages.dev").replace(/\/+$/, "");
-const WITHDRAW_LABEL = { PENDING: "En attente", PAID: "Payé", REJECTED: "Refusé" };
+const WITHDRAW_LABEL = { PENDING: "En attente", APPROVED: "Approuvé", PAID: "Payé", REJECTED: "Refusé" };
 const TABS = [
   { key: "deposit", label: "Déposer" },
   { key: "withdraw", label: "Retirer" },
@@ -51,7 +52,7 @@ function Segmented({ value, onChange }) {
 function Step({ n, text }) {
   return (
     <View className="mb-2 flex-row items-start">
-      <View className="mr-3 h-6 w-6 items-center justify-center rounded-full bg-primarySoft">
+      <View className="mr-3 h-6 w-6 items-center justify-center rounded-full bg-primary-soft">
         <Text className="text-[12px] font-bold text-ink">{n}</Text>
       </View>
       <Text className="flex-1 text-[13px] text-ink">{text}</Text>
@@ -60,10 +61,11 @@ function Step({ n, text }) {
 }
 
 /** Portefeuille du vendeur : solde, depot d'argent (Mobile Money), retrait et historique, dans un onglet a part. */
-export default function WalletScreen({ vendor, onMenuPress, onRefresh }) {
+export default function WalletScreen({ vendor, onMenuPress, onRefresh, onGoBank }) {
   const [tab, setTab] = useState("deposit");
   const [withdrawals, setWithdrawals] = useState([]);
   const [methods, setMethods] = useState([]);
+  const [balances, setBalances] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -71,8 +73,8 @@ export default function WalletScreen({ vendor, onMenuPress, onRefresh }) {
   const [saving, setSaving] = useState(false);
   const [depositUrl, setDepositUrl] = useState("");
   // « Solde en attente » : bloqué jusqu'à la confirmation de livraison ; « Solde retirable » : seul solde utilisable pour Retirer.
-  const pendingBalance = Number((vendor && vendor.pending_balance) || 0);
-  const withdrawableBalance = Number((vendor && vendor.wallet_balance) || 0);
+  const pendingBalance = balances ? balances.pending : Number((vendor && vendor.pending_balance) || 0);
+  const withdrawableBalance = balances ? balances.withdrawable : Number((vendor && vendor.wallet_balance) || 0);
 
   const load = useCallback(async () => {
     if (!vendor || !vendor.id) return;
@@ -86,6 +88,21 @@ export default function WalletScreen({ vendor, onMenuPress, onRefresh }) {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+    try {
+      const { data } = await supabase
+        .from("vendors")
+        .select("wallet_balance, pending_balance")
+        .eq("id", vendor.id)
+        .maybeSingle();
+      if (data) {
+        setBalances({
+          pending: Number(data.pending_balance || 0),
+          withdrawable: Number(data.wallet_balance || 0),
+        });
+      }
+    } catch (e) {
+      // on garde les soldes du compte déjà chargés
     }
   }, [vendor]);
 
@@ -109,6 +126,7 @@ export default function WalletScreen({ vendor, onMenuPress, onRefresh }) {
 
   const closeDeposit = () => {
     setDepositUrl("");
+    load();
     if (onRefresh) onRefresh();
   };
 
@@ -123,18 +141,20 @@ export default function WalletScreen({ vendor, onMenuPress, onRefresh }) {
       setError("Montant supérieur à ton « Solde retirable »");
       return;
     }
-    const method = methods.find((m) => m.is_default) || methods[0];
-    if (!method) {
-      setError("Ajoutez d'abord un moyen de paiement dans Compte bancaire (menu)");
+    const chosen = methods.find((m) => m.is_default) || methods[0];
+    if (!chosen) {
+      setError("Ajoute d'abord un moyen de paiement");
       return;
     }
     setSaving(true);
     try {
       setError(null);
-      const created = await requestWithdrawal(vendor.id, value, method.id);
+      const created = await requestWithdrawal(vendor.id, value, chosen.id);
       setWithdrawals((prev) => [created, ...(prev || [])]);
       setAmount("");
       setTab("history");
+      load();
+      if (onRefresh) onRefresh();
     } catch (e) {
       setError(e.message || "Demande impossible");
     } finally {
@@ -195,6 +215,9 @@ export default function WalletScreen({ vendor, onMenuPress, onRefresh }) {
         {tab === "withdraw" ? (
           <Card>
             <Text className="mb-3 text-[15px] font-bold text-ink">Retirer de l'argent</Text>
+            <Text className="mb-3 text-[12px] text-muted">
+              Disponible au retrait : {money(withdrawableBalance)}
+            </Text>
             <Input
               label="Montant"
               value={amount}
@@ -204,11 +227,15 @@ export default function WalletScreen({ vendor, onMenuPress, onRefresh }) {
             />
             <Text className="mb-3 text-[12px] text-muted">
               {method
-                ? `Versé sur : ${method.provider || "Mobile Money"}`
-                : "Aucun moyen de paiement : ajoutes-en un dans Compte bancaire (menu)."}
+                ? `Versé sur : ${method.provider || "Mobile Money"} · ${method.account_number || ""}`
+                : "Aucun moyen de paiement enregistré."}
             </Text>
             {error ? <Text className="mb-3 text-[12px] text-red-500">{error}</Text> : null}
-            <Button label="Envoyer la demande" icon="card" onPress={request} loading={saving} />
+            {method ? (
+              <Button label="Envoyer la demande" icon="card" onPress={request} loading={saving} />
+            ) : (
+              <Button label="Ajouter un moyen de paiement" icon="card" onPress={onGoBank} />
+            )}
           </Card>
         ) : null}
 
