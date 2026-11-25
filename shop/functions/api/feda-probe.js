@@ -4,7 +4,7 @@ import { json, CORS_PREFLIGHT, fedaBase } from "../_shared.js";
 // GET /api/feda-probe?key=mego-probe-2026 : cree un payout sandbox pour chaque mode et renvoie le statut HTTP + le corps complet.
 // Aucune donnee en base n'est touchee : appel direct a FedaPay, sans /payouts/start.
 
-export const onModelRequestOptions = () => CORS_PREFLIGHT();
+export const onRequestOptions = () => CORS_PREFLIGHT();
 
 const CASES = [
   { mode: "moov", phone: "0164000001" },
@@ -14,7 +14,7 @@ const CASES = [
   { mode: "mtn_bj", phone: "0166000001" },
 ];
 
-export async function onModelGet({ request, env }) {
+export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   if (url.searchParams.get("key") !== "mego-probe-2026") {
     return json({ ok: false, error: "cle invalide" }, 403);
