@@ -1,10 +1,11 @@
-import { json, CORS_PREFLIGT, fedaBase } from "../_shared.js";
+import { json, CORS_PREFLIGHT, fedaBase } from "../_shared.js";
 
 // SONDE TEMPORAIRE - a supprimer apres le test.
-// GET /api/feda-probe?key=mego-probe-2026 : cree un payout sandbox pour chaque mode et renvoie le statut HTTP + le corps complet.
-// Aucune donnee en base n'est touchee : appel direct a FedaPay, sans /payouts/start.
+// GET /api/feda-probe?key=mego-probe-2026 : cree un payout sandbox pour chaque mode
+// et renvoie le statut HTTP + le corps complet. Aucune donnee en base n'est touchee,
+// aucun /payouts/start n'est appele.
 
-export const onModelRequestOptions = () => CORS_PREFLIGHT();
+export const onRequestOptions = () => CORS_PREFLIGHT();
 
 const CASES = [
   { mode: "moov", phone: "64000001" },
@@ -14,12 +15,12 @@ const CASES = [
   { mode: "mtn_bj", phone: "66000001" },
 ];
 
-export async function onModelGet({ request, env }) {
+export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   if (url.searchParams.get("key") !== "mego-probe-2026") {
     return json({ ok: false, error: "cle invalide" }, 403);
   }
-  if (!env.FEDAPAY_SECRET_KEY) return json({ ok: false, error: "FEDPAAY_SECRET_KEY absente" }, 500);
+  if (!env.FEDAPAY_SECRET_KEY) return json({ ok: false, error: "FEDAPAY_SECRET_KEY absente" }, 500);
 
   const base = fedaBase(env);
   const out = [];
@@ -46,9 +47,9 @@ export async function onModelGet({ request, env }) {
       status = r.status;
       text = await r.text();
     } catch (e) {
-      text = `${e instanceof Error ? e.message : "fetch echec"}`;
+      text = e instanceof Error ? e.message : "fetch echec";
     }
-    out.push({ base, mode: c.mode, phone: `+229${ c.phone }`, status, body: text });
+    out.push({ mode: c.mode, phone: `+229${c.phone}`, status, body: text });
   }
-  return json({ ok: true, results: out });
+  return json({ ok: true, base, results: out });
 }
