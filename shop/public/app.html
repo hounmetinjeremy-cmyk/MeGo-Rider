@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MeGo - Télécharger l'application</title>
+<title>MeGo - Téléchargement de l'application</title>
 <style>
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
@@ -24,16 +24,20 @@
   <main class="card">
     <div class="logo">M</div>
     <h1>MeGo</h1>
-    <p>Commande, livre et vends près de chez toi. Télécharge l'application Android.</p>
+    <p>Le téléchargement de l'application démarre…<br>S'il ne démarre pas, appuie sur le bouton.</p>
     <a class="btn" href="/telecharger" download>Télécharger l'application</a>
     <div class="steps">
-      <b>Pour installer :</b>
+      <b>Ensuite :</b>
       <ol>
-        <li>Ouvre le fichier téléchargé (MeGo).</li>
+        <li>Appuie sur le fichier téléchargé (notification ou dossier Téléchargements).</li>
         <li>Si Android demande l'autorisation, active « Autoriser depuis cette source ».</li>
-        <li>Appuie sur « Installer ».</li>
+        <li>Appuie sur « Installer », puis sur « Ouvrir ».</li>
       </ol>
     </div>
   </main>
+  <script>
+    // Démarre le téléchargement tout seul, sans que la personne ait à appuyer sur le bouton.
+    setTimeout(function () { window.location.href = "/telecharger"; }, 600);
+  </script>
 </body>
 </html>
