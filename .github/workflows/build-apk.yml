@@ -8,8 +8,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
-            EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: 358155489243-iccidiiqdnpbstvjnou01sa3baoirctg.apps.googleusercontent.com
+      EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: 358155489243-iccidiiqdnpbstvjnou01sa3baoirctg.apps.googleusercontent.com
     steps:
       - uses: actions/checkout@v4
 
@@ -40,3 +42,11 @@ jobs:
           name: mego-apk
           path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+
+      - name: Publier l'APK (lien public)
+        run: |
+          cp android/app/build/outputs/apk/release/*.apk mego-rider.apk
+          gh release delete apk-latest --cleanup-tag --yes || true
+          gh release create apk-latest mego-rider.apk --title "MeGo Rider (dernier APK)" --notes "Derniere version telechargeable." --latest
+        env:
+          GH_TOKEN: ${{ github.token }}
