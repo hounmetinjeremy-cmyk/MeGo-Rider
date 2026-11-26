@@ -5,6 +5,17 @@ import { json, CORS_PREFLIGHT, ALLOWED, mobilePush, sbHeaders, sbUrl } from "../
 // (500 a 500 000 F). Le credit du solde n'a lieu qu'apres confirmation de FedaPay (webhook ou /api/verify).
 export const onRequestOptions = () => CORS_PREFLIGHT();
 
+// Garde la raison d'un echec sur le depot (colonne deposits.error) : visible dans la base, sans fouiller les logs.
+async function recordFailure(env, depositId, message) {
+  try {
+    await fetch(sbUrl(env, "/rest/v1/rpc/fail_deposit"), {
+      method: "POST",
+      headers: sbHeaders(env),
+      body: JSON.stringify({ p_deposit_id: depositId, p_error: String(message || "echec") }),
+    });
+  } catch (e) {}
+}
+
 export async function onRequestPost({ request, env }) {
   try {
     if (!env.FEDAPAY_SECRET_KEY || !env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -42,7 +53,9 @@ export async function onRequestPost({ request, env }) {
         operator,
       });
     } catch (e) {
-      return json({ ok: false, error: e instanceof Error ? e.message : "Paiement indisponible" }, 502);
+      const msg = e instanceof Error ? e.message : "Paiement indisponible";
+      await recordFailure(env, sd.deposit_id, msg);
+      return json({ ok: false, error: msg }, 502);
     }
 
     // 3) on memorise la transaction sur le depot (la confirmation arrive par le webhook ou /api/verify)
@@ -52,7 +65,10 @@ export async function onRequestPost({ request, env }) {
       body: JSON.stringify({ p_deposit_id: sd.deposit_id, p_ref: String(txId) }),
     });
     const att = await ar.json().catch(() => ({}));
-    if (!att || att.ok !== true) return json({ ok: false, error: (att && att.error) || "Depot non enregistre" }, 500);
+    if (!att || att.ok !== true) {
+      // la demande est deja partie chez FedaPay : on garde la reference pour que le webhook puisse quand meme crediter
+      return json({ ok: false, error: (att && att.error) || "Depot non enregistre" }, 500);
+    }
 
     return json({ ok: true, deposit_id: sd.deposit_id, transactionId: txId, message: "Demande envoyee sur ton telephone. Valide avec ton code." });
   } catch (e) {
