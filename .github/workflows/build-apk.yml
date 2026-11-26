@@ -34,7 +34,9 @@ jobs:
         run: keytool -list -v -keystore android/app/debug.keystore -alias androiddebugkey -storepass android -keypass android | grep -E "SHA1|SHA256"
 
       - name: Build release APK
-        run: cd android && chmod +x gradlew && ./gradlew assembleRelease --no-daemon
+        run: |
+          echo "org.gradle.jvmargs=-Xmx5g -XX:MaxMetaspaceSize=1g" >> android/gradle.properties
+          cd android && chmod +x gradlew && ./gradlew assembleRelease --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
